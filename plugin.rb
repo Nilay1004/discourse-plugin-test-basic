@@ -21,8 +21,10 @@ after_initialize do
 
   module ::PIIEncryption
     def self.encrypt_email(email)
-      # Reverse the email string
+      # Log the email before and after encryption
+      Rails.logger.info "PIIEncryption: Original email: #{email}"
       encrypted_email = email.reverse
+      Rails.logger.info "PIIEncryption: Encrypted email: #{encrypted_email}"
       encrypted_email
     end
   end
@@ -31,6 +33,7 @@ after_initialize do
     after_create :encrypt_email_address
 
     def encrypt_email_address
+      Rails.logger.info "PIIEncryption: Encrypting email for user: #{self.username}"
       self.email = PIIEncryption.encrypt_email(self.email)
       self.save
     end
