@@ -30,7 +30,7 @@ after_initialize do
   end
 
   class ::User
-    after_create :encrypt_email_address
+    around_create :encrypt_email_address
 
     def encrypt_email_address
       Rails.logger.info "PIIEncryption: Encrypting email for user: #{self.username}"
