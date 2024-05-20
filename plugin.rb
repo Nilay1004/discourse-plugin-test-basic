@@ -17,24 +17,15 @@ end
 require_relative "lib/my_plugin_module/engine"
 
 after_initialize do
-  Rails.logger.info "PIIEncryption: Plugin initialized"
-
   require_dependency 'user'
 
   module ::PIIEncryption
     def self.encrypt_email(email)
-      Rails.logger.info "PIIEncryption: Encrypting email: #{email}"
-      encrypted_email = email.reverse # Simple reversal for demonstration
+      # Log the email before and after encryption
+      Rails.logger.info "PIIEncryption: Original email: #{email}"
+      encrypted_email = email.reverse
       Rails.logger.info "PIIEncryption: Encrypted email: #{encrypted_email}"
       encrypted_email
-    end
-
-    def self.decrypt_email(encrypted_email)
-      return nil if encrypted_email.nil?
-      Rails.logger.info "PIIEncryption: Decrypting email: #{encrypted_email}"
-      decrypted_email = encrypted_email.reverse
-      Rails.logger.info "PIIEncryption: Decrypted email: #{decrypted_email}"
-      decrypted_email
     end
   end
 
@@ -44,12 +35,7 @@ after_initialize do
     def encrypt_email_address
       Rails.logger.info "PIIEncryption: Encrypting email for user: #{self.username}"
       self.email = PIIEncryption.encrypt_email(self.email)
-    end
-
-    # Override the getter for the email attribute
-    def email
-      encrypted_email = read_attribute(:email)
-      PIIEncryption.decrypt_email(encrypted_email)
+      self.save
     end
   end
 end
