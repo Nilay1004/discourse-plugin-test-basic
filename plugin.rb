@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
 # name: discourse-plugin-name
-# about: TODO
-# meta_topic_id: TODO
+# about: Test
+# meta_topic_id: 123
 # version: 0.0.1
-# authors: Discourse
-# url: TODO
+# authors: Nilay
+# url: https://github.com/Nilay1004/discourse-plugin-test-basic
 # required_version: 2.7.0
 
 enabled_site_setting :plugin_name_enabled
