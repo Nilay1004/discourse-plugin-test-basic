@@ -28,6 +28,13 @@ after_initialize do
       Rails.logger.info "PIIEncryption: Encrypted email: #{encrypted_email}"
       encrypted_email
     end
+
+    def self.decrypt_email(encrypted_email)
+      Rails.logger.info "PIIEncryption: Decrypting email: #{encrypted_email}"
+      decrypted_email = encrypted_email.reverse
+      Rails.logger.info "PIIEncryption: Decrypted email: #{decrypted_email}"
+      decrypted_email
+    end
   end
 
   class ::User
