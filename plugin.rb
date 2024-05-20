@@ -1,4 +1,4 @@
-# frozen_string_literal: true
+8# frozen_string_literal: true
 
 # name: discourse-plugin-name-nilay
 # about: Test
@@ -17,6 +17,7 @@ end
 require_relative "lib/my_plugin_module/engine"
 
 after_initialize do
+  Rails.logger.info "PIIEncryption: Plugin initialized"
   require_dependency 'user'
 
   module ::PIIEncryption
@@ -36,6 +37,11 @@ after_initialize do
       Rails.logger.info "PIIEncryption: Encrypting email for user: #{self.username}"
       self.email = PIIEncryption.encrypt_email(self.email)
       self.save
+    end
+
+    def decrypt_email_address
+      encrypted_email = read_attribute(:email)
+      PIIEncryption.decrypt_email(encrypted_email)
     end
   end
 end
