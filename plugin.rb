@@ -1,4 +1,4 @@
-# frozen_string_literal: true
+n# frozen_string_literal: true
 
 # name: discourse-plugin-name-nilay
 # about: Test
