@@ -52,4 +52,4 @@ after_initialize do
     encrypted_email = read_attribute(:email)
     PIIEncryption.decrypt_email(encrypted_email)
    end
- end
+end
