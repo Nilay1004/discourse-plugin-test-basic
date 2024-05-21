@@ -47,9 +47,14 @@ after_initialize do
     end
 
     def decrypt_email_address
+      Rails.logger.info "PIIEncryption: DEncrypting email for user: #{self.username}"
       encrypted_email = read_attribute(:email)
+      encrypted_email_temp = encrypted_email
       self.email=PIIEncryption.decrypt_email(encrypted_email)
-      self.save
+      Email = self.email
+      Rails.logger.info "PIIEncryption: Encrypting email for user: #{encrypted_email_temp}"
+      Rails.logger.info "PIIEncryption: Encrypting email for user: #{Email}"
     end
+   end
   end
 end
