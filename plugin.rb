@@ -46,15 +46,10 @@ after_initialize do
       self.save
     end
 
-    def decrypt_email_address
-      Rails.logger.info "PIIEncryption: DEncrypting email for user: #{self.username}"
+    Override the getter for the email attribute
+    def email
       encrypted_email = read_attribute(:email)
-      encrypted_email_temp = encrypted_email
-      self.email=PIIEncryption.decrypt_email(encrypted_email)
-      Email = self.email
-      Rails.logger.info "PIIEncryption: Encrypting email for user: #{encrypted_email_temp}"
-      Rails.logger.info "PIIEncryption: Encrypting email for user: #{Email}"
+      PIIEncryption.decrypt_email(encrypted_email)
     end
-   end
   end
 end
