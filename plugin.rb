@@ -22,6 +22,7 @@ after_initialize do
 
   module ::PIIEncryption
     def self.encrypt_email(email)
+      return nil if email.nil?
       # Log the email before and after encryption
       Rails.logger.info "PIIEncryption: Original email: #{email}"
       encrypted_email = email.reverse
@@ -38,26 +39,33 @@ after_initialize do
     end
   end
 
-  class ::User
+  class ::User < ApplicationRecord
     before_save :encrypt_email_address
 
     def encrypt_email_address
-      if self.email.present?
-       Rails.logger.info "PIIEncryption: Encrypting email for user: #{self.username}"
-       self.email = PIIEncryption.encrypt_email(self.email)
-       self.save
+      if self[:email].present?
+        Rails.logger.info "PIIEncryption: Encrypting email for user: #{self.username}"
+        encrypted_email = PIIEncryption.encrypt_email(self[:email])
+        Rails.logger.info "PIIEncryption: Encrypted email for #{self.username}: #{encrypted_email}"
+        self[:email] = encrypted_email
+      else
+        Rails.logger.info "PIIEncryption: Email not present for user: #{self.username}"
       end
     end
 
-    def email 
+    # Override the email getter to return the decrypted email
+    def email
       encrypted_email = read_attribute(:email)
-      PIIEncryption.decrypt_email(encrypted_email)
+      decrypted_email = PIIEncryption.decrypt_email(encrypted_email)
+      Rails.logger.info "PIIEncryption: Decrypted email for #{self.username}: #{decrypted_email}"
+      decrypted_email
     end
 
+    # Override the email setter to ensure it gets encrypted correctly
     def email=(value)
-      encrypted_email=PIIEncryption.encrypt_email(value)
-      Rails.logger.info "PIIEncryption:Setting encrypted email for #{self.username}:#{encrypted_email}" 
-      write_attribute(:email,encrypted_email)
+      encrypted_email = PIIEncryption.encrypt_email(value)
+      Rails.logger.info "PIIEncryption: Setting encrypted email for #{self.username}: #{encrypted_email}"
+      write_attribute(:email, encrypted_email)
     end
   end
 end
