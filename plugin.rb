@@ -22,6 +22,7 @@ after_initialize do
 
   module ::PIIEncryption
     def self.encrypt_email(email)
+      return nil if email.nil?
       # Log the email before and after encryption
       Rails.logger.info "PIIEncryption: Original email: #{email}"
       encrypted_email = email.reverse
@@ -30,6 +31,7 @@ after_initialize do
     end
 
     def self.decrypt_email(encrypted_email)
+      return nil if encrypted_email.nil?
       Rails.logger.info "PIIEncryption: Decrypting email: #{encrypted_email}"
       decrypted_email = encrypted_email.reverse
       Rails.logger.info "PIIEncryption: Decrypted email: #{decrypted_email}"
@@ -38,18 +40,32 @@ after_initialize do
   end
 
   class ::User
-   before_save :encrypt_email_address
+    before_save :encrypt_email_address
 
-   def encrypt_email_address
-    if self.email.present?
-      Rails.logger.info "PIIEncryption: Encrypting email for user: #{self.username}"
-      self.email = PIIEncryption.encrypt_email(self.email)
+    def encrypt_email_address
+      if self[:email].present?
+        Rails.logger.info "PIIEncryption: Encrypting email for user: #{self[:username]}"
+        encrypted_email = PIIEncryption.encrypt_email(self[:email])
+        Rails.logger.info "PIIEncryption: Encrypted email for #{self[:username]}: #{encrypted_email}"
+        self[:email] = encrypted_email
+      else
+        Rails.logger.info "PIIEncryption: Email not present for user: #{self[:username]}"
+      end
     end
-   end
 
-   def decrypt_email_address
-    encrypted_email = read_attribute(:email)
-    PIIEncryption.decrypt_email(encrypted_email)
-   end
+    # Override the email getter to return the decrypted email
+    def email
+      encrypted_email = self[:email]
+      decrypted_email = PIIEncryption.decrypt_email(encrypted_email)
+      Rails.logger.info "PIIEncryption: Decrypted email for #{self[:username]}: #{decrypted_email}"
+      decrypted_email
+    end
+
+    # Override the email setter to ensure it gets encrypted correctly
+    def email=(value)
+      encrypted_email = PIIEncryption.encrypt_email(value)
+      Rails.logger.info "PIIEncryption: Setting encrypted email for #{self[:username]}: #{encrypted_email}"
+      self[:email] = encrypted_email
+    end
   end
 end
