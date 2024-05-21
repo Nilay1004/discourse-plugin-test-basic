@@ -18,7 +18,7 @@ require_relative "lib/my_plugin_module/engine"
 
 after_initialize do
   Rails.logger.info "PIIEncryption: Plugin initialized"
-  require_dependency 'user'
+  require_dependency 'user_email'
   require_dependency 'email/sender'
 
   module ::PIIEncryption
@@ -39,26 +39,26 @@ after_initialize do
     end
   end
 
-  class ::User
+  class ::UserEmail
     before_save :encrypt_email_address
 
     def encrypt_email_address
-      Rails.logger.info "PIIEncryption: Encrypting email for user: #{self.username}"
+      Rails.logger.info "PIIEncryption: Encrypting email for user ID: #{self.user_id}"
       self.email = PIIEncryption.encrypt_email(self.email)
     end
 
     def email
       encrypted_email = read_attribute(:email)
-      Rails.logger.info "PIIEncryption: Accessing email for user: #{self.username}. Encrypted email: #{encrypted_email}"
+      Rails.logger.info "PIIEncryption: Accessing email for user ID: #{self.user_id}. Encrypted email: #{encrypted_email}"
       decrypted_email = PIIEncryption.decrypt_email(encrypted_email)
-      Rails.logger.info "PIIEncryption: Decrypted email for user: #{self.username}: #{decrypted_email}"
+      Rails.logger.info "PIIEncryption: Decrypted email for user ID: #{self.user_id}: #{decrypted_email}"
       decrypted_email
     end
 
     def email=(new_email)
-      Rails.logger.info "PIIEncryption: Setting email for user: #{self.username}. New email: #{new_email}"
+      Rails.logger.info "PIIEncryption: Setting email for user ID: #{self.user_id}. New email: #{new_email}"
       encrypted_email = PIIEncryption.encrypt_email(new_email)
-      Rails.logger.info "PIIEncryption: Encrypted email to be saved for user: #{self.username}: #{encrypted_email}"
+      Rails.logger.info "PIIEncryption: Encrypted email to be saved for user ID: #{self.user_id}: #{encrypted_email}"
       write_attribute(:email, encrypted_email)
     end
   end
@@ -68,9 +68,9 @@ after_initialize do
     def send
       Rails.logger.info "PIIEncryption: Preparing to send email. Original recipients: #{@to}"
       message.to = @to.map do |recipient|
-        user = User.find_by(email: PIIEncryption.encrypt_email(recipient))
-        if user
-          decrypted_email = user.email
+        user_email = UserEmail.find_by(email: PIIEncryption.encrypt_email(recipient))
+        if user_email
+          decrypted_email = user_email.email
           Rails.logger.info "PIIEncryption: Decrypted email for recipient: #{decrypted_email}"
           decrypted_email
         else
