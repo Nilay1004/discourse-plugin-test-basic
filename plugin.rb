@@ -23,7 +23,6 @@ after_initialize do
 
   module ::PIIEncryption
     def self.encrypt_email(email)
-      return nil if email.nil? 
       Rails.logger.info "PIIEncryption: Encrypting email: #{email}"
       encrypted_email = email.reverse # Simple reversal for demonstration
       Rails.logger.info "PIIEncryption: Encrypted email: #{encrypted_email}"
