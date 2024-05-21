@@ -20,7 +20,6 @@ after_initialize do
   Rails.logger.info "PIIEncryption: Plugin initialized"
 
   require_dependency 'user'
-  require_dependency 'email_sender'
 
   module ::PIIEncryption
     def self.encrypt_email(email)
@@ -32,7 +31,6 @@ after_initialize do
     end
 
     def self.decrypt_email(encrypted_email)
-      return nil if encrypted_email.nil?
       Rails.logger.info "PIIEncryption: Decrypting email: #{encrypted_email}"
       decrypted_email = encrypted_email.reverse
       Rails.logger.info "PIIEncryption: Decrypted email: #{decrypted_email}"
@@ -41,7 +39,7 @@ after_initialize do
   end
 
   class ::User
-    before_save :encrypt_email_address, if: :email_changed?
+    before_save :encrypt_email_address
 
     def encrypt_email_address
       Rails.logger.info "PIIEncryption: Encrypting email for user: #{self.username}"
@@ -60,20 +58,14 @@ after_initialize do
     end
   end
 
-  # Hook into the email sending process to ensure the decrypted email is used
-  module UserEmailPatch
-    def self.prepended(base)
-      base.singleton_class.prepend ClassMethods
-    end
-
-    module ClassMethods
-      def send_user_email(type, user, *args)
-        user_email = user.email_for_mailing
-        Rails.logger.info "PIIEncryption: Sending email to #{user_email}"
-        super(type, user, *args)
-      end
-    end
+  # Ensure email is decrypted for mailer
+  DiscourseEvent.on(:user_created) do |user|
+    user.reload
+    user.email_for_mailing
   end
 
-  ::UserEmail.prepend UserEmailPatch
+  DiscourseEvent.on(:user_updated) do |user|
+    user.reload
+    user.email_for_mailing
+  end
 end
