@@ -46,6 +46,7 @@ after_initialize do
       Rails.logger.info "PIIEncryption: Encrypting email for user: #{self.username}"
       self.email = PIIEncryption.encrypt_email(self.email)
       self.save
+      end
     end
 
     def email 
