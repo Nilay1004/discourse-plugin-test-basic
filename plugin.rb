@@ -46,8 +46,7 @@ after_initialize do
       self.save
     end
 
-    #Override the getter for the email attribute
-    def email
+    def decrypt_email_address
       encrypted_email = read_attribute(:email)
       PIIEncryption.decrypt_email(encrypted_email)
     end
