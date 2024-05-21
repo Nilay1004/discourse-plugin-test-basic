@@ -38,17 +38,18 @@ after_initialize do
   end
 
   class ::User
-    before_save :encrypt_email_address
+  before_save :encrypt_email_address
 
-    def encrypt_email_address
+  def encrypt_email_address
+    if self.email.present?
       Rails.logger.info "PIIEncryption: Encrypting email for user: #{self.username}"
-      self.email = PIIEncryption.encrypt_email(self.email)
-      self.save
-    end
-
-    def decrypt_email_address
-      encrypted_email = read_attribute(:email)
-      PIIEncryption.decrypt_email(encrypted_email)
+      decrypted_email = PIIEncryption.decrypt_email(self.email)
+      self.email = PIIEncryption.encrypt_email(decrypted_email)
     end
   end
-end
+
+  def decrypt_email_address
+    encrypted_email = read_attribute(:email)
+    PIIEncryption.decrypt_email(encrypted_email)
+  end
+  end
