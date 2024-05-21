@@ -40,11 +40,14 @@ after_initialize do
   end
 
   class ::User
-    before_save :encrypt_email_address, if: :email_changed?
+    before_save :conditionally_encrypt_email_address
 
-    def encrypt_email_address
-      Rails.logger.info "PIIEncryption: Encrypting email for user: #{self.username}"
-      self.email = PIIEncryption.encrypt_email(self.email)
+    def conditionally_encrypt_email_address
+      Rails.logger.info "PIIEncryption: Checking if email needs encryption for user: #{self.username}"
+      if new_record? || will_save_change_to_email?
+        Rails.logger.info "PIIEncryption: Encrypting email for user: #{self.username}"
+        self.email = PIIEncryption.encrypt_email(self.email)
+      end
     end
 
     def email
