@@ -30,7 +30,6 @@ after_initialize do
     end
 
     def self.decrypt_email(encrypted_email)
-      return nil if email.nil?
       Rails.logger.info "PIIEncryption: Decrypting email: #{encrypted_email}"
       decrypted_email = encrypted_email.reverse
       Rails.logger.info "PIIEncryption: Decrypted email: #{decrypted_email}"
@@ -39,29 +38,16 @@ after_initialize do
   end
 
   class ::User
-   before_save :encrypt_email_address
+    before_save :encrypt_email_address
 
-   def encrypt_email_address
-    if self.email.present?
-      encrypted_email = PIIEncryption.encrypt_email(self.email)
+    def encrypt_email_address
       Rails.logger.info "PIIEncryption: Encrypting email for user: #{self.username}"
-      write_attribute(:email, encrypted_email)
+      self.email = PIIEncryption.encrypt_email(self.email)
     end
-   end
 
-   def decrypt_email_address
-    encrypted_email = read_attribute(:email)
-    PIIEncryption.decrypt_email(encrypted_email)
-   end
-
-   class AddEmailToUsers < ActiveRecord::Migration[6.0]
-    def change
-     add_column :users, :email, :string
+    def decrypt_email_address
+      encrypted_email = read_attribute(:email)
+      PIIEncryption.decrypt_email(encrypted_email)
     end
-   end
-   
-   def email=(value)
-    write_attribute(:email, value)
-   end
   end
 end
