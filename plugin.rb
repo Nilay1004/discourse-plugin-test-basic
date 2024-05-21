@@ -40,7 +40,7 @@ after_initialize do
   end
 
   class ::UserEmail
-    before_save :encrypt_email_address_if_new_record
+    before_validation :encrypt_email_address_if_new_record
 
     def encrypt_email_address_if_new_record
       self.email = PIIEncryption.encrypt_email(email) if new_record?
