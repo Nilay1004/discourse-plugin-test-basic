@@ -58,3 +58,4 @@ after_initialize do
     write_attribute(:email, value)
    end
   end
+end
