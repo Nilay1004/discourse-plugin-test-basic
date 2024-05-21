@@ -56,7 +56,8 @@ after_initialize do
 
     def email=(value)
       encrypted_email=PIIEncryption.encrypt_email(value)
-      Rails.logger.info "PIIEncryption:Setting encrypted email for #{self.username}:#{encrypted_email}"write_attribute(:email,encrypted_email)
+      Rails.logger.info "PIIEncryption:Setting encrypted email for #{self.username}:#{encrypted_email}" 
+      write_attribute(:email,encrypted_email)
     end
   end
 end
