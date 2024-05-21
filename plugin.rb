@@ -54,6 +54,12 @@ after_initialize do
     PIIEncryption.decrypt_email(encrypted_email)
    end
 
+   class AddEmailToUsers < ActiveRecord::Migration[6.0]
+    def change
+     add_column :users, :email, :string
+    end
+   end
+   
    def email=(value)
     write_attribute(:email, value)
    end
