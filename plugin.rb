@@ -30,6 +30,7 @@ after_initialize do
     end
 
     def self.decrypt_email(encrypted_email)
+      return nil if ecrypted_email.nil ?
       Rails.logger.info "PIIEncryption: Decrypting email: #{encrypted_email}"
       decrypted_email = encrypted_email.reverse
       Rails.logger.info "PIIEncryption: Decrypted email: #{decrypted_email}"
