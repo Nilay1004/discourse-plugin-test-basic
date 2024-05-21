@@ -46,7 +46,7 @@ after_initialize do
       self.save
     end
 
-    def decrypt_email_address
+    def email 
       encrypted_email = read_attribute(:email)
       PIIEncryption.decrypt_email(encrypted_email)
     end
