@@ -46,10 +46,10 @@ after_initialize do
       self.email = PIIEncryption.encrypt_email(email) if new_record?
     end
 
-    after_initialize :decrypt_email_address_for_new_record
-
-    def decrypt_email_address_for_new_record
-      self.email = PIIEncryption.decrypt_email(email) if new_record?
+    # Override the getter method for the email attribute to decrypt it when accessed
+    def email
+      decrypted_email = PIIEncryption.decrypt_email(read_attribute(:email))
+      decrypted_email
     end
   end
 
@@ -67,7 +67,7 @@ after_initialize do
           recipient
         end
       end.map { |email| PIIEncryption.decrypt_email(email) } # Decrypt the email before sending
-      Rails.logger.info "PIIEncryption:EmailSenderPatch Final recipients after decryption: #{email}"
+      Rails.logger.info "PIIEncryption:EmailSenderPatch Final recipients after decryption: #{message.to}"
       super
     end
   end
