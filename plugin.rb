@@ -23,6 +23,7 @@ after_initialize do
 
   module ::PIIEncryption
     def self.encrypt_email(email)
+      return email if email.nil? || email.empty?
       Rails.logger.info "PIIEncryption: Encrypting email: #{email}"
       encrypted_email = email.reverse # Simple encryption by reversing the string
       Rails.logger.info "PIIEncryption: Encrypted email: #{encrypted_email}"
@@ -30,7 +31,7 @@ after_initialize do
     end
 
     def self.decrypt_email(encrypted_email)
-      return nil if encrypted_email.nil?
+      return encrypted_email if encrypted_email.nil? || encrypted_email.empty?
       Rails.logger.info "PIIEncryption: Decrypting email: #{encrypted_email}"
       decrypted_email = encrypted_email.reverse
       Rails.logger.info "PIIEncryption: Decrypted email: #{decrypted_email}"
@@ -39,7 +40,7 @@ after_initialize do
   end
 
   class ::User
-    before_save :encrypt_email_address
+    before_save :encrypt_email_address, if: :email_changed?
 
     def encrypt_email_address
       Rails.logger.info "PIIEncryption: Encrypting email for user: #{self.username}"
