@@ -19,6 +19,7 @@ require_relative "lib/my_plugin_module/engine"
 after_initialize do
   Rails.logger.info "PIIEncryption: Plugin initialized"
   require_dependency 'user_email'
+  require_dependency 'auth/default_current_user_provider'
 
   module ::PIIEncryption
     def self.encrypt_email(email)
@@ -59,7 +60,6 @@ after_initialize do
     end
   end
 
-  # Ensure we do not decrypt the email during validation
   module ::PIIEncryption::UserPatch
     def email
       if new_record?
@@ -69,7 +69,28 @@ after_initialize do
         super
       end
     end
+
+    def self.prepended(base)
+      class << base
+        alias_method :find_by_email_without_encryption, :find_by_email
+        alias_method :find_by_email, :find_by_email_with_encryption
+      end
+    end
+
+    def self.find_by_email_with_encryption(email)
+      encrypted_email = PIIEncryption.encrypt_email(email)
+      find_by_email_without_encryption(encrypted_email)
+    end
   end
 
   ::User.prepend(::PIIEncryption::UserPatch)
+
+  module ::Auth::PIIEncryptionCurrentUserProviderPatch
+    def find_user_from_email(email)
+      encrypted_email = ::PIIEncryption.encrypt_email(email)
+      UserEmail.find_by(email: encrypted_email)&.user
+    end
+  end
+
+  ::Auth::DefaultCurrentUserProvider.prepend(::Auth::PIIEncryptionCurrentUserProviderPatch)
 end
