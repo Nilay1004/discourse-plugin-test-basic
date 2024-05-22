@@ -44,7 +44,7 @@ after_initialize do
 
     def encrypt_email_address
       if self.email.present?
-       Rails.logger.info "PIIEncryption: Encrypting email for user: #{self.username}"
+       Rails.logger.info "PIIEncryption: Encrypting email for user:"
        self.email = PIIEncryption.encrypt_email(read_attribute(:email))
        self.save
       end
