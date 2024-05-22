@@ -20,6 +20,7 @@ after_initialize do
   Rails.logger.info "PIIEncryption: Plugin initialized"
   require_dependency 'user_email'
   require_dependency 'auth/default_current_user_provider'
+  require_dependency 'user'
 
   module ::PIIEncryption
     def self.encrypt_email(email)
@@ -43,11 +44,16 @@ after_initialize do
     before_save :encrypt_email_address
 
     def email
-      @decrypted_email ||= PIIEncryption.decrypt_email(read_attribute(:email))
+      @decrypted_email ||= begin
+        decrypted = PIIEncryption.decrypt_email(read_attribute(:email))
+        Rails.logger.info "PIIEncryption: Decrypted email accessed: #{decrypted}"
+        decrypted
+      end
     end
 
     def email=(value)
       @decrypted_email = value
+      Rails.logger.info "PIIEncryption: Setting email: #{value}"
       write_attribute(:email, PIIEncryption.encrypt_email(value))
     end
 
@@ -55,42 +61,46 @@ after_initialize do
 
     def encrypt_email_address
       if email_changed?
+        Rails.logger.info "PIIEncryption: Email changed, encrypting before save."
         write_attribute(:email, PIIEncryption.encrypt_email(@decrypted_email))
       end
     end
   end
 
+  # Ensure we do not decrypt the email during validation
   module ::PIIEncryption::UserPatch
     def email
       if new_record?
-        # Return the raw email attribute during the signup process
+        Rails.logger.info "PIIEncryption: New record, returning raw email attribute."
         read_attribute(:email)
       else
         super
       end
     end
-
-    def self.prepended(base)
-      class << base
-        alias_method :find_by_email_without_encryption, :find_by_email
-        alias_method :find_by_email, :find_by_email_with_encryption
-      end
-    end
-
-    def self.find_by_email_with_encryption(email)
-      encrypted_email = PIIEncryption.encrypt_email(email)
-      find_by_email_without_encryption(encrypted_email)
-    end
   end
 
   ::User.prepend(::PIIEncryption::UserPatch)
 
-  module ::Auth::PIIEncryptionCurrentUserProviderPatch
-    def find_user_from_email(email)
-      encrypted_email = ::PIIEncryption.encrypt_email(email)
+  # Patch the DefaultCurrentUserProvider to handle login with encrypted email
+  module ::PIIEncryption::AuthPatch
+    def log_on_user(user, session, cookies)
+      Rails.logger.info "PIIEncryption: Logging on user: #{user.email}"
+      user_email = UserEmail.find_by(email: PIIEncryption.encrypt_email(user.email))
+      if user_email
+        Rails.logger.info "PIIEncryption: Found user by encrypted email: #{user_email.email}"
+        super(user_email.user, session, cookies)
+      else
+        Rails.logger.info "PIIEncryption: User not found by encrypted email, logging on with given user."
+        super
+      end
+    end
+
+    def find_verified_user_by_email(email)
+      encrypted_email = PIIEncryption.encrypt_email(email)
+      Rails.logger.info "PIIEncryption: Finding user by encrypted email: #{encrypted_email}"
       UserEmail.find_by(email: encrypted_email)&.user
     end
   end
 
-  ::Auth::DefaultCurrentUserProvider.prepend(::Auth::PIIEncryptionCurrentUserProviderPatch)
+  ::Auth::DefaultCurrentUserProvider.prepend(::PIIEncryption::AuthPatch)
 end
