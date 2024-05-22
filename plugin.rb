@@ -76,7 +76,7 @@ after_initialize do
     end
   end
 
-  ::User.prepend(::PIIEncryption::UserPatch)
+  ::User.singleton_class.prepend(::PIIEncryption::UserPatch)
 
   module ::Auth::PIIEncryptionCurrentUserProviderPatch
     def find_user_from_email(email)
