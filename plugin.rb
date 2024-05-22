@@ -62,24 +62,17 @@ after_initialize do
   end
 
   module ::PIIEncryption::UserPatch
-    def self.prepended(base)
-      class << base
-        alias_method :find_by_email_without_encryption, :find_by_email
-        alias_method :find_by_email, :find_by_email_with_encryption
-      end
-    end
-
-    def find_by_email_with_encryption(email)
-      encrypted_email = ::PIIEncryption.encrypt_email(email)
-      find_by_email_without_encryption(encrypted_email)
-    end
-
     def email
       if new_record?
         read_attribute(:email)
       else
         PIIEncryption.decrypt_email(read_attribute(:email))
       end
+    end
+
+    def self.find_by_email(email)
+      encrypted_email = ::PIIEncryption.encrypt_email(email)
+      find_by(email: encrypted_email)
     end
   end
 
