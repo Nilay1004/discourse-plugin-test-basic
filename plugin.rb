@@ -20,6 +20,7 @@ after_initialize do
   Rails.logger.info "PIIEncryption: Plugin initialized"
   require_dependency 'user_email'
   require_dependency 'auth/default_current_user_provider'
+  require_dependency 'user'
 
   module ::PIIEncryption
     def self.encrypt_email(email)
@@ -61,15 +62,6 @@ after_initialize do
   end
 
   module ::PIIEncryption::UserPatch
-    def email
-      if new_record?
-        # Return the raw email attribute during the signup process
-        read_attribute(:email)
-      else
-        super
-      end
-    end
-
     def self.prepended(base)
       class << base
         alias_method :find_by_email_without_encryption, :find_by_email
@@ -77,9 +69,17 @@ after_initialize do
       end
     end
 
-    def self.find_by_email_with_encryption(email)
-      encrypted_email = PIIEncryption.encrypt_email(email)
+    def find_by_email_with_encryption(email)
+      encrypted_email = ::PIIEncryption.encrypt_email(email)
       find_by_email_without_encryption(encrypted_email)
+    end
+
+    def email
+      if new_record?
+        read_attribute(:email)
+      else
+        PIIEncryption.decrypt_email(read_attribute(:email))
+      end
     end
   end
 
