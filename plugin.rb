@@ -60,7 +60,6 @@ after_initialize do
     end
   end
 
-  # Ensure we do not decrypt the email during validation
   module ::PIIEncryption::UserPatch
     def email
       if new_record?
@@ -70,17 +69,28 @@ after_initialize do
         super
       end
     end
+
+    def self.prepended(base)
+      class << base
+        alias_method :find_by_email_without_encryption, :find_by_email
+        alias_method :find_by_email, :find_by_email_with_encryption
+      end
+    end
+
+    def self.find_by_email_with_encryption(email)
+      encrypted_email = PIIEncryption.encrypt_email(email)
+      find_by_email_without_encryption(encrypted_email)
+    end
   end
 
   ::User.prepend(::PIIEncryption::UserPatch)
 
-  # Patch the DefaultCurrentUserProvider to handle login with encrypted email
-  module ::PIIEncryption::AuthPatch
-    def find_verified_user_by_email(email)
-      encrypted_email = PIIEncryption.encrypt_email(email)
+  module ::Auth::PIIEncryptionCurrentUserProviderPatch
+    def find_user_from_email(email)
+      encrypted_email = ::PIIEncryption.encrypt_email(email)
       UserEmail.find_by(email: encrypted_email)&.user
     end
   end
 
-  ::Auth::DefaultCurrentUserProvider.prepend(::PIIEncryption::AuthPatch)
+  ::Auth::DefaultCurrentUserProvider.prepend(::Auth::PIIEncryptionCurrentUserProviderPatch)
 end
