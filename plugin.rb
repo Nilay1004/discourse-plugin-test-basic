@@ -42,24 +42,34 @@ after_initialize do
     before_save :encrypt_email_address
 
     def email
-      if new_record?
-        # Do not decrypt if the record is new and has not been saved yet
-        read_attribute(:email)
-      else
-        @decrypted_email ||= PIIEncryption.decrypt_email(read_attribute(:email))
-      end
+      @decrypted_email ||= PIIEncryption.decrypt_email(read_attribute(:email))
     end
 
     def email=(value)
-      # Store the encrypted email in the database
-      write_attribute(:email, PIIEncryption.encrypt_email(value))
       @decrypted_email = value
+      write_attribute(:email, PIIEncryption.encrypt_email(value))
     end
 
     private
 
     def encrypt_email_address
-      self.email = PIIEncryption.encrypt_email(read_attribute(:email))
+      if email_changed?
+        write_attribute(:email, PIIEncryption.encrypt_email(@decrypted_email))
+      end
     end
   end
+
+  # Ensure we do not decrypt the email during validation
+  module ::PIIEncryption::UserPatch
+    def email
+      if new_record?
+        # Return the raw email attribute during the signup process
+        read_attribute(:email)
+      else
+        super
+      end
+    end
+  end
+
+  ::User.prepend(::PIIEncryption::UserPatch)
 end
