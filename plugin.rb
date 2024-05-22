@@ -19,10 +19,10 @@ require_relative "lib/my_plugin_module/engine"
 after_initialize do
   Rails.logger.info "PIIEncryption: Plugin initialized"
   require_dependency 'user_email'
-  require_dependency 'email/sender'
 
   module ::PIIEncryption
     def self.encrypt_email(email)
+      return email if email.nil? || email.empty?
       Rails.logger.info "PIIEncryption: Encrypting email: #{email}"
       encrypted_email = email.reverse # Simple encryption by reversing the string
       Rails.logger.info "PIIEncryption: Encrypted email: #{encrypted_email}"
@@ -62,25 +62,4 @@ after_initialize do
       self.email = PIIEncryption.encrypt_email(read_attribute(:email))
     end
   end
-
-  # Patch Email::Sender to use decrypted email
-  module EmailSenderPatch
-    def send
-      Rails.logger.info "PIIEncryption:EmailSenderPatch Preparing to send email. Original recipients: #{@to}"
-      message.to = @to.map do |recipient|
-        user_email = UserEmail.find_by(email: PIIEncryption.encrypt_email(recipient))
-        if user_email
-          decrypted_email = user_email.email
-          Rails.logger.info "PIIEncryption:EmailSenderPatch Decrypted email for recipient: #{decrypted_email}"
-          decrypted_email
-        else
-          recipient
-        end
-      end.map { |email| PIIEncryption.decrypt_email(email) } # Decrypt the email before sending
-      Rails.logger.info "PIIEncryption:EmailSenderPatch Final recipients after decryption: #{message.to}"
-      super
-    end
-  end
-
-  ::Email::Sender.prepend EmailSenderPatch
 end
