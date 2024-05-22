@@ -18,20 +18,19 @@ require_relative "lib/my_plugin_module/engine"
 
 after_initialize do
   Rails.logger.info "PIIEncryption: Plugin initialized"
-  require_dependency 'user_email'
-  require_dependency 'email/sender'
+  require_dependency 'user'
 
   module ::PIIEncryption
     def self.encrypt_email(email)
-      return email if email.nil? || email.empty?
-      Rails.logger.info "PIIEncryption: Encrypting email: #{email}"
-      encrypted_email = email.reverse # Simple encryption by reversing the string
+      # Log the email before and after encryption
+      Rails.logger.info "PIIEncryption: Original email: #{email}"
+      encrypted_email = email.reverse
       Rails.logger.info "PIIEncryption: Encrypted email: #{encrypted_email}"
       encrypted_email
     end
 
     def self.decrypt_email(encrypted_email)
-      return encrypted_email if encrypted_email.nil? || encrypted_email.empty?
+      return nil if encrypted_email.nil?
       Rails.logger.info "PIIEncryption: Decrypting email: #{encrypted_email}"
       decrypted_email = encrypted_email.reverse
       Rails.logger.info "PIIEncryption: Decrypted email: #{decrypted_email}"
@@ -39,38 +38,20 @@ after_initialize do
     end
   end
 
-  class ::UserEmail
-    before_create :encrypt_email_address_if_new_record
+  class ::User
+    before_save :encrypt_email_address
 
-    def encrypt_email_address_if_new_record
-      self.email = PIIEncryption.encrypt_email(email) if new_record?
+    def encrypt_email_address
+      if self.email.present?
+       Rails.logger.info "PIIEncryption: Encrypting email for user: #{self.username}"
+       self.email = PIIEncryption.encrypt_email(self.email)
+       self.save
+      end
     end
 
-    # Override the getter method for the email attribute to decrypt it when accessed
-    def email
-      decrypted_email = PIIEncryption.decrypt_email(read_attribute(:email))
-      decrypted_email
-    end
-  end
-
-  # Patch Email::Sender to use decrypted email
-  module EmailSenderPatch
-    def send
-      Rails.logger.info "PIIEncryption:EmailSenderPatch Preparing to send email. Original recipients: #{@to}"
-      message.to = @to.map do |recipient|
-        user_email = UserEmail.find_by(email: PIIEncryption.encrypt_email(recipient))
-        if user_email
-          decrypted_email = user_email.email
-          Rails.logger.info "PIIEncryption:EmailSenderPatch Decrypted email for recipient: #{decrypted_email}"
-          decrypted_email
-        else
-          recipient
-        end
-      end.map { |email| PIIEncryption.decrypt_email(email) } # Decrypt the email before sending
-      Rails.logger.info "PIIEncryption:EmailSenderPatch Final recipients after decryption: #{message.to}"
-      super
+    def email 
+      encrypted_email = read_attribute(:email)
+      PIIEncryption.decrypt_email(encrypted_email)
     end
   end
-
-  ::Email::Sender.prepend EmailSenderPatch
 end
