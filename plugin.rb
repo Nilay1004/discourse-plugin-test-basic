@@ -25,17 +25,13 @@ after_initialize do
   module ::PIIEncryption
     def self.encrypt_email(email)
       return email if email.nil? || email.empty?
-      Rails.logger.info "PIIEncryption: Encrypting email: #{email}"
       encrypted_email = email.reverse # Simple encryption by reversing the string
-      Rails.logger.info "PIIEncryption: Encrypted email: #{encrypted_email}"
       encrypted_email
     end
 
     def self.decrypt_email(encrypted_email)
       return encrypted_email if encrypted_email.nil? || encrypted_email.empty?
-      Rails.logger.info "PIIEncryption: Decrypting email: #{encrypted_email}"
       decrypted_email = encrypted_email.reverse
-      Rails.logger.info "PIIEncryption: Decrypted email: #{decrypted_email}"
       decrypted_email
     end
   end
@@ -44,30 +40,29 @@ after_initialize do
     before_save :encrypt_email_address
 
     def email
-      @decrypted_email ||= PIIEncryption.decrypt_email(read_attribute(:email))
+      decrypted_email = PIIEncryption.decrypt_email(read_attribute(:email))
+      decrypted_email
     end
 
     def email=(value)
-      @decrypted_email = value
-      write_attribute(:email, PIIEncryption.encrypt_email(value))
+      encrypted_email = PIIEncryption.encrypt_email(value)
+      write_attribute(:email, encrypted_email)
     end
 
     private
 
     def encrypt_email_address
       if email_changed?
-        write_attribute(:email, PIIEncryption.encrypt_email(@decrypted_email))
+        encrypted_email = PIIEncryption.encrypt_email(self[:email])
+        write_attribute(:email, encrypted_email)
       end
     end
   end
 
   module ::PIIEncryption::UserPatch
     def email
-      if new_record?
-        read_attribute(:email)
-      else
-        PIIEncryption.decrypt_email(read_attribute(:email))
-      end
+      decrypted_email = PIIEncryption.decrypt_email(super)
+      decrypted_email
     end
 
     def self.find_by_email(email)
@@ -81,7 +76,9 @@ after_initialize do
   module ::Auth::PIIEncryptionCurrentUserProviderPatch
     def find_user_from_email(email)
       encrypted_email = ::PIIEncryption.encrypt_email(email)
-      UserEmail.find_by(email: encrypted_email)&.user
+      user_email = UserEmail.find_by(email: encrypted_email)
+      user = user_email&.user
+      user
     end
   end
 
