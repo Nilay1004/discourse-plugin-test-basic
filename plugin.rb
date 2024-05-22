@@ -40,7 +40,7 @@ after_initialize do
 
   class ::UserEmail
     before_save :encrypt_email_address
-    after_save :email
+    after_save :decrypt_email_address
 
     def encrypt_email_address
       if self.email.present?
@@ -50,8 +50,7 @@ after_initialize do
       end
     end
 
-    def email 
-      encrypted_email = read_attribute(:email)
+    def decrypt_email_address
       @email=PIIEncryption.decrypt_email(read_attribute(:email))
     end
   end
