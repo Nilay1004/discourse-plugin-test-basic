@@ -21,6 +21,7 @@ after_initialize do
   require_dependency 'user_email'
   require_dependency 'auth/default_current_user_provider'
   require_dependency 'user'
+  require_dependency 'session_controller'
 
   module ::PIIEncryption
     def self.encrypt_email(email)
@@ -67,7 +68,6 @@ after_initialize do
     end
   end
 
-  # Ensure we do not decrypt the email during validation
   module ::PIIEncryption::UserPatch
     def email
       if new_record?
@@ -81,32 +81,56 @@ after_initialize do
 
   ::User.prepend(::PIIEncryption::UserPatch)
 
-  # Patch the DefaultCurrentUserProvider to handle login with encrypted email
   module ::PIIEncryption::AuthPatch
-    def log_on_user(user, session, cookies)
-      Rails.logger.info "PIIEncryption: Logging on user: #{user.email}"
-      encrypted_email = PIIEncryption.encrypt_email(user.email)
+    def find_verified_user_by_email(email, *args)
+      encrypted_email = PIIEncryption.encrypt_email(email)
+      Rails.logger.info "PIIEncryption: Finding user by encrypted email: #{encrypted_email}"
       user_email = UserEmail.find_by(email: encrypted_email)
       if user_email
-        Rails.logger.info "PIIEncryption: Found user by encrypted email: #{user_email.email}"
-        super(user_email.user, session, cookies)
+        Rails.logger.info "PIIEncryption: User found: #{user_email.user.username}"
+        user_email.user
       else
-        Rails.logger.info "PIIEncryption: User not found by encrypted email, logging on with given user."
-        super(user, session, cookies)
+        Rails.logger.info "PIIEncryption: No user found for encrypted email: #{encrypted_email}"
+        nil
       end
     end
 
-    def find_verified_user_by_email(email)
-      encrypted_email = PIIEncryption.encrypt_email(email)
-      Rails.logger.info "PIIEncryption: Finding user by encrypted email: #{encrypted_email}"
-      UserEmail.find_by(email: encrypted_email)&.user
+    def log_on_user(user, *args)
+      Rails.logger.info "PIIEncryption: Logging on user: #{user.username}"
+      super
     end
   end
 
   ::Auth::DefaultCurrentUserProvider.prepend(::PIIEncryption::AuthPatch)
 
-  # Log the login process at the controller level to ensure decrypted email is being used
   DiscourseEvent.on(:user_logged_in) do |user|
     Rails.logger.info "PIIEncryption: User logged in with email: #{user.email}"
   end
+
+  DiscourseEvent.on(:user_failed_login) do |email|
+    Rails.logger.info "PIIEncryption: Failed login attempt with email: #{email}"
+  end
+
+  # Patch SessionsController to add logging and handle encrypted email during login
+  module ::PIIEncryption::SessionsControllerPatch
+    def create
+      Rails.logger.info "PIIEncryption: SessionsController#create called"
+      email = params[:login]&.downcase
+      Rails.logger.info "PIIEncryption: Received login email: #{email}"
+
+      encrypted_email = PIIEncryption.encrypt_email(email)
+      Rails.logger.info "PIIEncryption: Encrypted login email: #{encrypted_email}"
+
+      params[:login] = encrypted_email
+
+      super
+
+      Rails.logger.info "PIIEncryption: SessionsController#create completed"
+    rescue => e
+      Rails.logger.error "PIIEncryption: Error in SessionsController#create - #{e.message}"
+      raise e
+    end
+  end
+
+  ::SessionsController.prepend(::PIIEncryption::SessionsControllerPatch)
 end
