@@ -10,77 +10,32 @@
 
 enabled_site_setting :plugin_name_enabled
 
-module ::MyPluginModule
-  PLUGIN_NAME = "discourse-plugin-name-darshan"
-end
-
-require_relative "lib/my_plugin_module/engine"
-
 after_initialize do
-  Rails.logger.info "PIIEncryption: Plugin initialized"
-  require_dependency 'user_email'
-  require_dependency 'auth/default_current_user_provider'
-  require_dependency 'user'
+  require_dependency 'middleware/omniauth_bypass_middleware'
 
-  module ::PIIEncryption
-    def self.encrypt_email(email)
-      return email if email.nil? || email.empty?
-      encrypted_email = email.reverse # Simple encryption by reversing the string
-      encrypted_email
-    end
+  module ::ReverseEmailLogin
+    class Middleware
+      def initialize(app)
+        @app = app
+      end
 
-    def self.decrypt_email(encrypted_email)
-      return encrypted_email if encrypted_email.nil? || encrypted_email.empty?
-      decrypted_email = encrypted_email.reverse
-      decrypted_email
-    end
-  end
-
-  class ::UserEmail
-    before_save :encrypt_email_address
-
-    def email
-      decrypted_email = PIIEncryption.decrypt_email(read_attribute(:email))
-      decrypted_email
-    end
-
-    def email=(value)
-      encrypted_email = PIIEncryption.encrypt_email(value)
-      write_attribute(:email, encrypted_email)
-    end
-
-    private
-
-    def encrypt_email_address
-      if email_changed?
-        encrypted_email = PIIEncryption.encrypt_email(self[:email])
-        write_attribute(:email, encrypted_email)
+      def call(env)
+        if SiteSetting.reverse_email_login_enabled
+          request = Rack::Request.new(env)
+          if request.path == "/session" && request.post?
+            email = request.params["login"]&.strip
+            if email&.include?("@")
+              reversed_email = email.reverse
+              Rails.logger.info "Original Email: #{email}"
+              Rails.logger.info "Reversed Email: #{reversed_email}"
+              request.update_param("login", reversed_email)
+            end
+          end
+        end
+        @app.call(env)
       end
     end
   end
 
-  module ::PIIEncryption::UserPatch
-    def email
-      decrypted_email = PIIEncryption.decrypt_email(super)
-      decrypted_email
-    end
-
-    def self.find_by_email(email)
-      encrypted_email = ::PIIEncryption.encrypt_email(email)
-      find_by(email: encrypted_email)
-    end
-  end
-
-  ::User.singleton_class.prepend(::PIIEncryption::UserPatch)
-
-  module ::Auth::PIIEncryptionCurrentUserProviderPatch
-    def find_user_from_email(email)
-      encrypted_email = ::PIIEncryption.encrypt_email(email)
-      user_email = UserEmail.find_by(email: encrypted_email)
-      user = user_email&.user
-      user
-    end
-  end
-
-  ::Auth::DefaultCurrentUserProvider.prepend(::Auth::PIIEncryptionCurrentUserProviderPatch)
+  Discourse::Application.config.middleware.use ::ReverseEmailLogin::Middleware
 end
