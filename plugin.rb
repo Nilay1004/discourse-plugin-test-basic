@@ -11,10 +11,8 @@
 enabled_site_setting :plugin_name_enabled
 
 after_initialize do
-  require_dependency 'middleware/omniauth_bypass_middleware'
-
   module ::ReverseEmailLogin
-    class Middleware
+    class ReverseEmailMiddleware
       def initialize(app)
         @app = app
       end
@@ -37,5 +35,6 @@ after_initialize do
     end
   end
 
-  Discourse::Application.config.middleware.use ::ReverseEmailLogin::Middleware
+  # Register the middleware
+  Discourse::Application.config.middleware.insert_before ActionDispatch::Cookies, ::ReverseEmailLogin::ReverseEmailMiddleware
 end
