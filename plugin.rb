@@ -111,26 +111,30 @@ after_initialize do
     Rails.logger.info "PIIEncryption: Failed login attempt with email: #{email}"
   end
 
-  # Patch SessionsController to add logging and handle encrypted email during login
-  module ::PIIEncryption::SessionsControllerPatch
-    def create
-      Rails.logger.info "PIIEncryption: SessionsController#create called"
-      email = params[:login]&.downcase
-      Rails.logger.info "PIIEncryption: Received login email: #{email}"
+  # Ensure SessionsController is loaded before patching it
+  if defined?(::SessionsController)
+    module ::PIIEncryption::SessionsControllerPatch
+      def create
+        Rails.logger.info "PIIEncryption: SessionsController#create called"
+        email = params[:login]&.downcase
+        Rails.logger.info "PIIEncryption: Received login email: #{email}"
 
-      encrypted_email = PIIEncryption.encrypt_email(email)
-      Rails.logger.info "PIIEncryption: Encrypted login email: #{encrypted_email}"
+        encrypted_email = PIIEncryption.encrypt_email(email)
+        Rails.logger.info "PIIEncryption: Encrypted login email: #{encrypted_email}"
 
-      params[:login] = encrypted_email
+        params[:login] = encrypted_email
 
-      super
+        super
 
-      Rails.logger.info "PIIEncryption: SessionsController#create completed"
-    rescue => e
-      Rails.logger.error "PIIEncryption: Error in SessionsController#create - #{e.message}"
-      raise e
+        Rails.logger.info "PIIEncryption: SessionsController#create completed"
+      rescue => e
+        Rails.logger.error "PIIEncryption: Error in SessionsController#create - #{e.message}"
+        raise e
+      end
     end
-  end
 
-  ::SessionsController.prepend(::PIIEncryption::SessionsControllerPatch)
+    ::SessionsController.prepend(::PIIEncryption::SessionsControllerPatch)
+  else
+    Rails.logger.error "PIIEncryption: SessionsController not defined, patching failed"
+  end
 end
