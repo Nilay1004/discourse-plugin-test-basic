@@ -9,33 +9,36 @@
 # required_version: 2.7.0
 
 enabled_site_setting :plugin_name_enabled
+
+
 after_initialize do
   module ::ReverseEmailLogin
-    class Engine < ::Rails::Engine
-      engine_name "reverse_email_login"
-      isolate_namespace ReverseEmailLogin
-    end
-
-    class ReverseEmailLoginController < ::SessionController
+    module SessionControllerExtensions
       def create
-        email = params[:login]&.strip
-        if email.present?
-          reversed_email = email.reverse
-          Rails.logger.info "Original Email: #{email}"
-          Rails.logger.info "Reversed Email: #{reversed_email}"
-          
-          # Replace the email with the reversed one
-          params[:login] = reversed_email
+        if SiteSetting.plugin_name_enabled
+          email = params[:login]&.strip
+          if email.present?
+            reversed_email = email.reverse
+            Rails.logger.info "Original Email: #{email}"
+            Rails.logger.info "Reversed Email: #{reversed_email}"
+
+            # Replace the email with the reversed one
+            params[:login] = reversed_email
+          end
         end
-        
+
         super # Call the original create method
       end
     end
   end
 
   require_dependency 'session_controller'
-  ::SessionController.prepend ::ReverseEmailLogin::ReverseEmailLoginController
+  ::SessionController.prepend ::ReverseEmailLogin::SessionControllerExtensions
 end
+
+
+
+  
 
 
 
