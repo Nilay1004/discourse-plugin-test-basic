@@ -12,25 +12,31 @@ enabled_site_setting :plugin_name_enabled
 
 after_initialize do
   module ::ReverseEmailLogin
-    module SessionControllerExtensions
-      def create
-        if SiteSetting.reverse_email_login_enabled
-          email_or_username = params[:login]&.strip
-          if email_or_username.present? && email_or_username.include?("@")
-            reversed_email = email_or_username.reverse
-            Rails.logger.info "Original Email: #{email_or_username}"
-            Rails.logger.info "Reversed Email: #{reversed_email}"
+    class UserAuthenticator
+      def self.find_user(login, password)
+        return nil if login.blank? || password.blank?
 
-            # Replace the email with the reversed one
-            params[:login] = reversed_email
-          end
+        if SiteSetting.plugin_name_enabled && login.include?("@")
+          login = login.reverse
+          Rails.logger.info "Reversed Email: #{login}"
         end
 
-        super # Call the original create method
+        user = User.find_by_email_or_username(login)
+        user if user && user.valid_password?(password)
+      end
+    end
+
+    class Auth::DefaultCurrentUserProvider
+      def find_user_by_identifier(email_or_username)
+        if SiteSetting.reverse_email_login_enabled && email_or_username.include?("@")
+          email_or_username = email_or_username.reverse
+          Rails.logger.info "Reversed Email in CurrentUserProvider: #{email_or_username}"
+        end
+        super(email_or_username)
       end
     end
   end
 
-  require_dependency 'session_controller'
-  ::SessionController.prepend ::ReverseEmailLogin::SessionControllerExtensions
+  # Override the `UserAuthenticator` class
+  Auth::DefaultCurrentUserProvider.prepend ::ReverseEmailLogin::UserAuthenticator
 end
