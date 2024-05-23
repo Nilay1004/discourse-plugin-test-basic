@@ -25,13 +25,17 @@ after_initialize do
   module ::PIIEncryption
     def self.encrypt_email(email)
       return email if email.nil? || email.empty?
+      Rails.logger.info "PIIEncryption: Encrypting email: #{email}"
       encrypted_email = email.reverse # Simple encryption by reversing the string
+      Rails.logger.info "PIIEncryption: Encrypted email: #{encrypted_email}"
       encrypted_email
     end
 
     def self.decrypt_email(encrypted_email)
       return encrypted_email if encrypted_email.nil? || encrypted_email.empty?
+      Rails.logger.info "PIIEncryption: Decrypting email: #{encrypted_email}"
       decrypted_email = encrypted_email.reverse
+      Rails.logger.info "PIIEncryption: Decrypted email: #{decrypted_email}"
       decrypted_email
     end
   end
@@ -40,47 +44,69 @@ after_initialize do
     before_save :encrypt_email_address
 
     def email
-      decrypted_email = PIIEncryption.decrypt_email(read_attribute(:email))
-      decrypted_email
+      @decrypted_email ||= begin
+        decrypted = PIIEncryption.decrypt_email(read_attribute(:email))
+        Rails.logger.info "PIIEncryption: Decrypted email accessed: #{decrypted}"
+        decrypted
+      end
     end
 
     def email=(value)
-      encrypted_email = PIIEncryption.encrypt_email(value)
-      write_attribute(:email, encrypted_email)
+      @decrypted_email = value
+      Rails.logger.info "PIIEncryption: Setting email: #{value}"
+      write_attribute(:email, PIIEncryption.encrypt_email(value))
     end
 
     private
 
     def encrypt_email_address
       if email_changed?
-        encrypted_email = PIIEncryption.encrypt_email(self[:email])
-        write_attribute(:email, encrypted_email)
+        Rails.logger.info "PIIEncryption: Email changed, encrypting before save."
+        write_attribute(:email, PIIEncryption.encrypt_email(@decrypted_email))
       end
     end
   end
 
+  # Ensure we do not decrypt the email during validation
   module ::PIIEncryption::UserPatch
     def email
-      decrypted_email = PIIEncryption.decrypt_email(super)
-      decrypted_email
-    end
-
-    def self.find_by_email(email)
-      encrypted_email = ::PIIEncryption.encrypt_email(email)
-      find_by(email: encrypted_email)
+      if new_record?
+        Rails.logger.info "PIIEncryption: New record, returning raw email attribute."
+        read_attribute(:email)
+      else
+        super
+      end
     end
   end
 
-  ::User.singleton_class.prepend(::PIIEncryption::UserPatch)
+  ::User.prepend(::PIIEncryption::UserPatch)
 
-  module ::Auth::PIIEncryptionCurrentUserProviderPatch
-    def find_user_from_email(email)
-      encrypted_email = ::PIIEncryption.encrypt_email(email)
+  # Patch the DefaultCurrentUserProvider to handle login with encrypted email
+  module ::PIIEncryption::AuthPatch
+    def log_on_user(user, session, cookies)
+      Rails.logger.info "PIIEncryption: Logging on user: #{user.email}"
+      encrypted_email = PIIEncryption.encrypt_email(user.email)
       user_email = UserEmail.find_by(email: encrypted_email)
-      user = user_email&.user
-      user
+      if user_email
+        Rails.logger.info "PIIEncryption: Found user by encrypted email: #{user_email.email}"
+        super(user_email.user, session, cookies)
+      else
+        Rails.logger.info "PIIEncryption: User not found by encrypted email, logging on with given user."
+        super(user, session, cookies)
+      end
+    end
+
+    def find_verified_user_by_email(email)
+      encrypted_email = PIIEncryption.encrypt_email(email)
+      Rails.logger.info "PIIEncryption: Finding user by encrypted email: #{encrypted_email}"
+      UserEmail.find_by(email: encrypted_email)&.user
     end
   end
 
-  ::Auth::DefaultCurrentUserProvider.prepend(::Auth::PIIEncryptionCurrentUserProviderPatch)
+  ::Auth::DefaultCurrentUserProvider.prepend(::PIIEncryption::AuthPatch)
+
+  # Log the login process at the controller level to ensure decrypted email is being used
+  DiscourseEvent.on(:user_logged_in) do |user|
+    Rails.logger.info "PIIEncryption: User logged in with email: #{user.email}"
+  end
 end
