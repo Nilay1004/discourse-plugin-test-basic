@@ -8,27 +8,13 @@
 # url: https://github.com/Nilay1004/discourse-plugin-test-basic
 # required_version: 2.7.0
 
-enabled_site_setting :plugin_name_enabled
+enabled_site_setting :reverse_email_login_enabled
 
 after_initialize do
   module ::ReverseEmailLogin
-    class UserAuthenticator
-      def self.find_user(login, password)
-        return nil if login.blank? || password.blank?
-
-        if SiteSetting.plugin_name_enabled && login.include?("@")
-          login = login.reverse
-          Rails.logger.info "Reversed Email: #{login}"
-        end
-
-        user = User.find_by_email_or_username(login)
-        user if user && user.valid_password?(password)
-      end
-    end
-
-    class Auth::DefaultCurrentUserProvider
+    module DefaultCurrentUserProviderExtensions
       def find_user_by_identifier(email_or_username)
-        if SiteSetting.plugin_name_enabled && email_or_username.include?("@")
+        if SiteSetting.reverse_email_login_enabled && email_or_username.include?("@")
           email_or_username = email_or_username.reverse
           Rails.logger.info "Reversed Email in CurrentUserProvider: #{email_or_username}"
         end
@@ -37,6 +23,9 @@ after_initialize do
     end
   end
 
-  # Override the `UserAuthenticator` class
-  Auth::DefaultCurrentUserProvider.prepend ::ReverseEmailLogin::UserAuthenticator
+  # Ensure the module is loaded
+  require_dependency 'auth/default_current_user_provider'
+
+  # Prepend the module
+  Auth::DefaultCurrentUserProvider.prepend ::ReverseEmailLogin::DefaultCurrentUserProviderExtensions
 end
