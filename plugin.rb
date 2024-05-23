@@ -12,29 +12,25 @@ enabled_site_setting :plugin_name_enabled
 
 after_initialize do
   module ::ReverseEmailLogin
-    class ReverseEmailMiddleware
-      def initialize(app)
-        @app = app
-      end
-
-      def call(env)
+    module SessionControllerExtensions
+      def create
         if SiteSetting.reverse_email_login_enabled
-          request = Rack::Request.new(env)
-          if request.path == "/session" && request.post?
-            email = request.params["login"]&.strip
-            if email&.include?("@")
-              reversed_email = email.reverse
-              Rails.logger.info "Original Email: #{email}"
-              Rails.logger.info "Reversed Email: #{reversed_email}"
-              request.update_param("login", reversed_email)
-            end
+          email_or_username = params[:login]&.strip
+          if email_or_username.present? && email_or_username.include?("@")
+            reversed_email = email_or_username.reverse
+            Rails.logger.info "Original Email: #{email_or_username}"
+            Rails.logger.info "Reversed Email: #{reversed_email}"
+
+            # Replace the email with the reversed one
+            params[:login] = reversed_email
           end
         end
-        @app.call(env)
+
+        super # Call the original create method
       end
     end
   end
 
-  # Register the middleware
-  Discourse::Application.config.middleware.insert_before ActionDispatch::Cookies, ::ReverseEmailLogin::ReverseEmailMiddleware
+  require_dependency 'session_controller'
+  ::SessionController.prepend ::ReverseEmailLogin::SessionControllerExtensions
 end
