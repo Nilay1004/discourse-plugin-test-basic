@@ -28,7 +28,7 @@ after_initialize do
 
     class Auth::DefaultCurrentUserProvider
       def find_user_by_identifier(email_or_username)
-        if SiteSetting.reverse_email_login_enabled && email_or_username.include?("@")
+        if SiteSetting.plugin_name_enabled && email_or_username.include?("@")
           email_or_username = email_or_username.reverse
           Rails.logger.info "Reversed Email in CurrentUserProvider: #{email_or_username}"
         end
