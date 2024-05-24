@@ -8,7 +8,6 @@
 # url: https://github.com/Nilay1004/discourse-plugin-test-basic
 # required_version: 2.7.0
 
-
 after_initialize do
   module ::ReverseEmailLogin
     class ReversedEmailAuthenticator < ::Auth::Authenticator
@@ -48,6 +47,7 @@ after_initialize do
       end
     end
 
-    Auth::Authenticator.register_authenticator(ReversedEmailAuthenticator.new)
+    # Register the custom authenticator
+    Auth::Authenticator.register(ReversedEmailAuthenticator.new)
   end
 end
