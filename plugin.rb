@@ -11,23 +11,21 @@
 
 after_initialize do
   module ::ReverseEmailLogin
-    module UserAuthenticatorExtensions
-      def find_user(login, password)
-        if login.present? && login.include?("@")
-          reversed_login = login.reverse
-          Rails.logger.info "Original Email: #{login}"
-          Rails.logger.info "Reversed Email: #{reversed_login}"
-          login = reversed_login
+    module SessionControllerExtensions
+      def create
+        if params[:login]&.include?("@")
+          original_email = params[:login].strip
+          reversed_email = original_email.reverse
+          Rails.logger.info "Original Email: #{original_email}"
+          Rails.logger.info "Reversed Email: #{reversed_email}"
+          params[:login] = reversed_email
         end
-
-        super(login, password)
+        
+        super
       end
     end
   end
 
-  # Ensure the module is loaded
-  require_dependency 'user_authenticator'
-
-  # Prepend the module to extend the UserAuthenticator
-  ::UserAuthenticator.singleton_class.prepend ::ReverseEmailLogin::UserAuthenticatorExtensions
+  require_dependency 'session_controller'
+  ::SessionController.prepend ::ReverseEmailLogin::SessionControllerExtensions
 end
