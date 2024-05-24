@@ -9,25 +9,25 @@
 # required_version: 2.7.0
 
 after_initialize do
-  module ::ReverseEmailLogin
-    module SessionControllerExtensions
-      def create
-        if params[:login].present? && params[:login].include?("@")
-          original_email = params[:login].strip
-          reversed_email = original_email.reverse
-          Rails.logger.info "Original Email: #{original_email}"
-          Rails.logger.info "Reversed Email: #{reversed_email}"
-          params[:login] = reversed_email
-        end
+  class ::ReverseEmailMiddleware
+    def initialize(app)
+      @app = app
+    end
 
-        super # Call the original create method
+    def call(env)
+      request = Rack::Request.new(env)
+
+      if request.path == "/session" && request.post? && request.params["login"]&.include?("@")
+        original_email = request.params["login"].strip
+        reversed_email = original_email.reverse
+        Rails.logger.info "Original Email: #{original_email}"
+        Rails.logger.info "Reversed Email: #{reversed_email}"
+        request.update_param("login", reversed_email)
       end
+
+      @app.call(env)
     end
   end
 
-  # Ensure the module is loaded
-  require_dependency 'session_controller'
-
-  # Prepend the module to extend the SessionController
-  ::SessionController.prepend ::ReverseEmailLogin::SessionControllerExtensions
+  Rails.application.config.middleware.use ::ReverseEmailMiddleware
 end
