@@ -11,24 +11,23 @@
 after_initialize do
   module ::ReverseEmailLogin
     module SessionControllerExtensions
-      def self.prepended(base)
-        base.class_eval do
-          before_action :reverse_email, only: :create
-        end
-      end
-
-      def reverse_email
-        if params[:login]&.include?("@")
+      def create
+        if params[:login].present? && params[:login].include?("@")
           original_email = params[:login].strip
           reversed_email = original_email.reverse
           Rails.logger.info "Original Email: #{original_email}"
           Rails.logger.info "Reversed Email: #{reversed_email}"
           params[:login] = reversed_email
         end
+
+        super # Call the original create method
       end
     end
   end
 
+  # Ensure the module is loaded
   require_dependency 'session_controller'
+
+  # Prepend the module to extend the SessionController
   ::SessionController.prepend ::ReverseEmailLogin::SessionControllerExtensions
 end
