@@ -11,7 +11,7 @@
 
 after_initialize do
   module ::ReverseEmailLogin
-    class ReversedEmailAuthenticator < ::Auth::DefaultAuthenticator
+    class ReversedEmailAuthenticator < ::Auth::Authenticator
       def name
         'reversed_email'
       end
@@ -25,23 +25,29 @@ after_initialize do
       end
 
       def after_authenticate(auth_token)
-        email = auth_token[:email]
-        username = auth_token[:username]
-        if email.present?
-          reversed_email = email.reverse
-          user = User.find_by(email: reversed_email)
+        result = Auth::Result.new
+
+        if auth_token[:email].present?
+          reversed_email = auth_token[:email].reverse
+          Rails.logger.info "Original Email: #{auth_token[:email]}"
+          Rails.logger.info "Reversed Email: #{reversed_email}"
+          user = User.find_by_email(reversed_email)
+
           if user
-            auth_result = ::Auth::Result.new
-            auth_result.user = user
-            auth_result.email = user.email
-            auth_result.email_valid = true
-            return auth_result
+            result.user = user
+            result.email = user.email
+            result.email_valid = true
+          else
+            result.failed = true
           end
+        else
+          result.failed = true
         end
-        super(auth_token)
+
+        result
       end
     end
 
-    ::Auth::Authenticator.register_authenticator(::ReverseEmailLogin::ReversedEmailAuthenticator.new)
+    Auth::Authenticator.register_authenticator(ReversedEmailAuthenticator.new)
   end
 end
