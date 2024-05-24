@@ -8,26 +8,26 @@
 # url: https://github.com/Nilay1004/discourse-plugin-test-basic
 # required_version: 2.7.0
 
+
 after_initialize do
-  class ::ReverseEmailMiddleware
-    def initialize(app)
-      @app = app
-    end
-
-    def call(env)
-      request = Rack::Request.new(env)
-
-      if request.path == "/session" && request.post? && request.params["login"]&.include?("@")
-        original_email = request.params["login"].strip
-        reversed_email = original_email.reverse
-        Rails.logger.info "Original Email: #{original_email}"
-        Rails.logger.info "Reversed Email: #{reversed_email}"
-        request.update_param("login", reversed_email)
+  module ::ReverseEmailLogin
+    module SessionControllerExtensions
+      def self.prepended(base)
+        base.before_action :reverse_email, only: :create
       end
 
-      @app.call(env)
+      def reverse_email
+        if params[:login].present? && params[:login].include?("@")
+          original_email = params[:login].strip
+          reversed_email = original_email.reverse
+          Rails.logger.info "Original Email: #{original_email}"
+          Rails.logger.info "Reversed Email: #{reversed_email}"
+          params[:login] = reversed_email
+        end
+      end
     end
   end
 
-  Rails.application.config.middleware.use ::ReverseEmailMiddleware
+  require_dependency 'session_controller'
+  ::SessionController.prepend ::ReverseEmailLogin::SessionControllerExtensions
 end
