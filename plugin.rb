@@ -10,8 +10,14 @@
 
 after_initialize do
   module ::ReverseEmailLogin
-    module ApplicationControllerExtensions
-      def handle_login_params
+    module SessionControllerExtensions
+      def self.prepended(base)
+        base.class_eval do
+          before_action :reverse_email, only: :create
+        end
+      end
+
+      def reverse_email
         if params[:login]&.include?("@")
           original_email = params[:login].strip
           reversed_email = original_email.reverse
@@ -23,14 +29,6 @@ after_initialize do
     end
   end
 
-  # Ensure the module is loaded
-  require_dependency 'application_controller'
-  
-  # Prepend the module to extend the ApplicationController
-  ::ApplicationController.prepend ::ReverseEmailLogin::ApplicationControllerExtensions
-
-  # Add a before_action to intercept the login params before the session controller processes them
-  ::ApplicationController.class_eval do
-    before_action :handle_login_params, only: [:create]
-  end
+  require_dependency 'session_controller'
+  ::SessionController.prepend ::ReverseEmailLogin::SessionControllerExtensions
 end
