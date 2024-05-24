@@ -12,17 +12,22 @@
 after_initialize do
   module ::ReverseEmailLogin
     module SessionControllerExtensions
-      def self.prepended(base)
-        base.before_action :reverse_email, only: :create
-      end
-
-      def reverse_email
+      def create
         if params[:login].present? && params[:login].include?("@")
           original_email = params[:login].strip
           reversed_email = original_email.reverse
           Rails.logger.info "Original Email: #{original_email}"
           Rails.logger.info "Reversed Email: #{reversed_email}"
-          params[:login] = reversed_email
+
+          # Duplication to avoid modifying frozen parameters
+          new_params = params.dup
+          new_params[:login] = reversed_email
+
+          # Call the original create method with modified params
+          @env["action_dispatch.request.parameters"] = new_params
+          super()
+        else
+          super()
         end
       end
     end
