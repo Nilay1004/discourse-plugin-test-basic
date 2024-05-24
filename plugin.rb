@@ -19,12 +19,13 @@ after_initialize do
           Rails.logger.info "Original Email: #{original_email}"
           Rails.logger.info "Reversed Email: #{reversed_email}"
 
-          # Duplication to avoid modifying frozen parameters
-          new_params = params.dup
+          # Creating a new hash to avoid frozen parameter issues
+          new_params = params.permit!.to_h
           new_params[:login] = reversed_email
 
-          # Call the original create method with modified params
-          @env["action_dispatch.request.parameters"] = new_params
+          # Directly call the original create method with modified parameters
+          request.params.merge!(new_params)
+
           super()
         else
           super()
