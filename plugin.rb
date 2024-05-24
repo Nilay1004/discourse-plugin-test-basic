@@ -11,29 +11,37 @@
 
 after_initialize do
   module ::ReverseEmailLogin
-    module SessionControllerExtensions
-      def create
-        if params[:login].present? && params[:login].include?("@")
-          original_email = params[:login].strip
-          reversed_email = original_email.reverse
-          Rails.logger.info "Original Email: #{original_email}"
-          Rails.logger.info "Reversed Email: #{reversed_email}"
+    class ReversedEmailAuthenticator < ::Auth::DefaultAuthenticator
+      def name
+        'reversed_email'
+      end
 
-          # Creating a new hash to avoid frozen parameter issues
-          new_params = params.permit!.to_h
-          new_params[:login] = reversed_email
+      def description
+        'Log in with your email address reversed'
+      end
 
-          # Directly call the original create method with modified parameters
-          request.params.merge!(new_params)
+      def primary_email_verified?(auth_token)
+        true
+      end
 
-          super()
-        else
-          super()
+      def after_authenticate(auth_token)
+        email = auth_token[:email]
+        username = auth_token[:username]
+        if email.present?
+          reversed_email = email.reverse
+          user = User.find_by(email: reversed_email)
+          if user
+            auth_result = ::Auth::Result.new
+            auth_result.user = user
+            auth_result.email = user.email
+            auth_result.email_valid = true
+            return auth_result
+          end
         end
+        super(auth_token)
       end
     end
-  end
 
-  require_dependency 'session_controller'
-  ::SessionController.prepend ::ReverseEmailLogin::SessionControllerExtensions
+    ::Auth::Authenticator.register_authenticator(::ReverseEmailLogin::ReversedEmailAuthenticator.new)
+  end
 end
