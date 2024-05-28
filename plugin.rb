@@ -15,25 +15,49 @@ module ::MyPluginModule
 end
 
 require_relative "lib/my_plugin_module/engine"
+require 'openssl'
 
 after_initialize do
-  Rails.logger.info "PIIEncryption: Plugin initialized"
+  puts "PIIEncryption: Plugin initialized" # Print statement for debugging
+
   require_dependency 'user_email'
 
   module ::PIIEncryption
+    # Method to encrypt the email using OpenSSL and the encryption key from app.yml
     def self.encrypt_email(email)
       return email if email.nil? || email.empty?
-      Rails.logger.info "PIIEncryption: Encrypting email: #{email}"
-      encrypted_email = email.reverse # Simple encryption by reversing the string
-      Rails.logger.info "PIIEncryption: Encrypted email: #{encrypted_email}"
-      encrypted_email
+
+      encryption_key = ENV['EMAIL_ENCRYPTION_KEY']
+      puts "PIIEncryption: Encryption key length: #{encryption_key.length}" # Print statement for debugging
+      raise "Encryption key not found in environment variable EMAIL_ENCRYPTION_KEY" if encryption_key.nil?
+      raise "Encryption key must be 32 bytes (currently #{encryption_key.length} bytes)" unless encryption_key.length == 64
+
+      cipher = OpenSSL::Cipher.new('AES-256-CBC')
+      cipher.encrypt
+      cipher.key = [encryption_key].pack("H*") # Convert hexadecimal string to binary
+      iv = cipher.random_iv
+
+      encrypted_email = cipher.update(email) + cipher.final
+      puts "PIIEncryption: Encrypted email: #{encrypted_email}" # Print statement for debugging
+      { ciphertext: encrypted_email, iv: iv }
     end
 
-    def self.decrypt_email(encrypted_email)
-      return encrypted_email if encrypted_email.nil? || encrypted_email.empty?
-      Rails.logger.info "PIIEncryption: Decrypting email: #{encrypted_email}"
-      decrypted_email = encrypted_email.reverse
-      Rails.logger.info "PIIEncryption: Decrypted email: #{decrypted_email}"
+    # Method to decrypt the email using OpenSSL and the encryption key from app.yml
+    def self.decrypt_email(encrypted_data)
+      return encrypted_data if encrypted_data.nil? || encrypted_data.empty?
+
+      encryption_key = ENV['EMAIL_ENCRYPTION_KEY']
+      puts "PIIEncryption: Decryption key length: #{encryption_key.length}" # Print statement for debugging
+      raise "Encryption key not found in environment variable EMAIL_ENCRYPTION_KEY" if encryption_key.nil?
+      raise "Encryption key must be 32 bytes (currently #{encryption_key.length} bytes)" unless encryption_key.length == 64
+
+      decipher = OpenSSL::Cipher.new('AES-256-CBC')
+      decipher.decrypt
+      decipher.key = [encryption_key].pack("H*") # Convert hexadecimal string to binary
+      decipher.iv = encrypted_data[:iv]
+
+      decrypted_email = decipher.update(encrypted_data[:ciphertext]) + decipher.final
+      puts "PIIEncryption: Decrypted email: #{decrypted_email}" # Print statement for debugging
       decrypted_email
     end
   end
@@ -73,7 +97,3 @@ after_initialize do
 
   ::User.prepend(::PIIEncryption::UserPatch)
 end
-
-
-Don’t change much it is a working code
-Just modify encryption and decrypt with openssl keys and function
