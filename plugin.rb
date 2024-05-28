@@ -46,26 +46,35 @@ after_initialize do
     end
 
     def self.decrypt_email(encrypted_email)
-      return encrypted_email if encrypted_email.nil? || encrypted_email.empty?
+    return nil if encrypted_email.nil? || encrypted_email.empty?
 
-      decoded_data = Base64.decode64(encrypted_email)
-      iv = decoded_data[0..15]  # AES block size for IV is 16 bytes
-      encrypted = decoded_data[16..-1]
+    decoded_data = Base64.decode64(encrypted_email)
+    iv = decoded_data[0..15]  # AES block size for IV is 16 bytes
+    encrypted = decoded_data[16..-1]
 
-      Rails.logger.info "PIIEncryption: Decrypting email: #{encrypted_email}"
-      Rails.logger.info "PIIEncryption: IV length: #{iv.length}"
-      Rails.logger.info "PIIEncryption: Encrypted part length: #{encrypted.length}"
-
-      raise "IV length is not 16 bytes" unless iv.length == 16
-
-      decipher = OpenSSL::Cipher::AES.new(256, :CBC)
-      decipher.decrypt
-      decipher.key = KEY
-      decipher.iv = iv
-      decrypted = decipher.update(encrypted) + decipher.final
-      Rails.logger.info "PIIEncryption: Decrypted email: #{decrypted}"
-      decrypted
+    if iv.nil?
+      Rails.logger.error "PIIEncryption: IV is nil"
+      return nil
     end
+
+    if iv.length != 16
+      Rails.logger.error "PIIEncryption: IV length is not 16 bytes"
+      return nil
+    end
+
+    Rails.logger.info "PIIEncryption: Decrypting email: #{encrypted_email}"
+    Rails.logger.info "PIIEncryption: IV length: #{iv.length}"
+    Rails.logger.info "PIIEncryption: Encrypted part length: #{encrypted.length}"
+
+    decipher = OpenSSL::Cipher::AES.new(256, :CBC)
+    decipher.decrypt
+    decipher.key = KEY
+    decipher.iv = iv
+    decrypted = decipher.update(encrypted) + decipher.final
+    Rails.logger.info "PIIEncryption: Decrypted email: #{decrypted}"
+    decrypted
+  end
+end
   end
 
   class ::UserEmail
