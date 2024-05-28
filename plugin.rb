@@ -33,8 +33,14 @@ after_initialize do
 
     def self.decrypt(data)
       return data if data.nil? || data.empty?
-      encrypted_data = Base64.strict_decode64(data)
-      encrypted_data.bytes.zip(KEY.bytes.cycle).map { |data_byte, key_byte| data_byte ^ key_byte }.pack('C*')
+
+      begin
+        encrypted_data = Base64.strict_decode64(data)
+        encrypted_data.bytes.zip(KEY.bytes.cycle).map { |data_byte, key_byte| data_byte ^ key_byte }.pack('C*')
+      rescue ArgumentError => e
+        Rails.logger.error "SimpleEncryption: Failed to decode base64 - #{e.message}"
+        data  # Return the original data if decoding fails
+      end
     end
   end
 
