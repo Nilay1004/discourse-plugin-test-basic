@@ -10,6 +10,9 @@
 
 enabled_site_setting :plugin_name_enabled
 
+require 'openssl'
+require 'base64'
+
 module ::MyPluginModule
   PLUGIN_NAME = "discourse-plugin-name-darshan"
 end
@@ -21,20 +24,32 @@ after_initialize do
   require_dependency 'user_email'
 
   module ::PIIEncryption
+    KEY = OpenSSL::Cipher::AES.new(256, :CBC).random_key
+    IV = OpenSSL::Cipher::AES.new(256, :CBC).random_iv
+
     def self.encrypt_email(email)
       return email if email.nil? || email.empty?
+      cipher = OpenSSL::Cipher::AES.new(256, :CBC)
+      cipher.encrypt
+      cipher.key = KEY
+      cipher.iv = IV
+      encrypted = cipher.update(email) + cipher.final
+      encrypted_email = Base64.encode64(encrypted)
       Rails.logger.info "PIIEncryption: Encrypting email: #{email}"
-      encrypted_email = email.reverse # Simple encryption by reversing the string
       Rails.logger.info "PIIEncryption: Encrypted email: #{encrypted_email}"
       encrypted_email
     end
 
     def self.decrypt_email(encrypted_email)
       return encrypted_email if encrypted_email.nil? || encrypted_email.empty?
+      decipher = OpenSSL::Cipher::AES.new(256, :CBC)
+      decipher.decrypt
+      decipher.key = KEY
+      decipher.iv = IV
+      decrypted = decipher.update(Base64.decode64(encrypted_email)) + decipher.final
       Rails.logger.info "PIIEncryption: Decrypting email: #{encrypted_email}"
-      decrypted_email = encrypted_email.reverse
-      Rails.logger.info "PIIEncryption: Decrypted email: #{decrypted_email}"
-      decrypted_email
+      Rails.logger.info "PIIEncryption: Decrypted email: #{decrypted}"
+      decrypted
     end
   end
 
