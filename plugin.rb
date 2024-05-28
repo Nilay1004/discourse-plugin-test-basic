@@ -15,50 +15,48 @@ module ::MyPluginModule
 end
 
 require_relative "lib/my_plugin_module/engine"
-require 'openssl'
+
+require 'net/http'
+require 'uri'
+require 'json'
 
 after_initialize do
-  puts "PIIEncryption: Plugin initialized" # Print statement for debugging
-
+  Rails.logger.info "PIIEncryption: Plugin initialized"
   require_dependency 'user_email'
 
   module ::PIIEncryption
-    # Method to encrypt the email using OpenSSL and the encryption key from app.yml
     def self.encrypt_email(email)
       return email if email.nil? || email.empty?
 
-      encryption_key = ENV['EMAIL_ENCRYPTION_KEY']
-      puts "PIIEncryption: Encryption key length: #{encryption_key.length}" # Print statement for debugging
-      raise "Encryption key not found in environment variable EMAIL_ENCRYPTION_KEY" if encryption_key.nil?
-      raise "Encryption key must be 32 bytes (currently #{encryption_key.length} bytes)" unless encryption_key.length == 64
+      uri = URI.parse("http://35.174.88.137:8080/encrypt")
+      http = Net::HTTP.new(uri.host, uri.port)
 
-      cipher = OpenSSL::Cipher.new('AES-256-CBC')
-      cipher.encrypt
-      cipher.key = [encryption_key].pack("H*") # Convert hexadecimal string to binary
-      iv = cipher.random_iv
+      request = Net::HTTP::Post.new(uri.path, 'Content-Type' => 'application/json')
+      request.body = { data: email, pii_type: "email" }.to_json
+      response = http.request(request)
 
-      encrypted_email = cipher.update(email) + cipher.final
-      puts "PIIEncryption: Encrypted email: #{encrypted_email}" # Print statement for debugging
-      { ciphertext: encrypted_email, iv: iv }
+      encrypted_email = JSON.parse(response.body)["encrypted_data"]
+      encrypted_email
+    rescue StandardError => e
+      Rails.logger.error "Error encrypting email: #{e.message}"
+      email
     end
 
-    # Method to decrypt the email using OpenSSL and the encryption key from app.yml
-    def self.decrypt_email(encrypted_data)
-      return encrypted_data if encrypted_data.nil? || encrypted_data.empty?
+    def self.decrypt_email(encrypted_email)
+      return encrypted_email if encrypted_email.nil? || encrypted_email.empty?
 
-      encryption_key = ENV['EMAIL_ENCRYPTION_KEY']
-      puts "PIIEncryption: Decryption key length: #{encryption_key.length}" # Print statement for debugging
-      raise "Encryption key not found in environment variable EMAIL_ENCRYPTION_KEY" if encryption_key.nil?
-      raise "Encryption key must be 32 bytes (currently #{encryption_key.length} bytes)" unless encryption_key.length == 64
+      uri = URI.parse("http://35.174.88.137:8080/decrypt")
+      http = Net::HTTP.new(uri.host, uri.port)
 
-      decipher = OpenSSL::Cipher.new('AES-256-CBC')
-      decipher.decrypt
-      decipher.key = [encryption_key].pack("H*") # Convert hexadecimal string to binary
-      decipher.iv = encrypted_data[:iv]
+      request = Net::HTTP::Post.new(uri.path, 'Content-Type' => 'application/json')
+      request.body = { data: encrypted_email, pii_data: "email" }.to_json
+      response = http.request(request)
 
-      decrypted_email = decipher.update(encrypted_data[:ciphertext]) + decipher.final
-      puts "PIIEncryption: Decrypted email: #{decrypted_email}" # Print statement for debugging
+      decrypted_email = JSON.parse(response.body)["decrypted_data"]
       decrypted_email
+    rescue StandardError => e
+      Rails.logger.error "Error decrypting email: #{e.message}"
+      encrypted_email
     end
   end
 
