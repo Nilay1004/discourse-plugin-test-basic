@@ -36,6 +36,9 @@ after_initialize do
       encrypted_data = iv + encrypted_email
 
       Base64.strict_encode64(encrypted_data)
+    rescue => e
+      Rails.logger.error "PIIEncryption: Error encrypting email - #{e.message}"
+      nil
     end
 
     def self.decrypt_email(encrypted_email)
@@ -51,7 +54,7 @@ after_initialize do
       decipher.iv = iv
 
       decipher.update(encrypted_message) + decipher.final
-    rescue ArgumentError => e
+    rescue => e
       Rails.logger.error "PIIEncryption: Error decrypting email - #{e.message}"
       nil
     end
@@ -72,7 +75,7 @@ after_initialize do
     private
 
     def encrypt_email_address
-      if email_changed?
+      if email_changed? && @decrypted_email.present?
         write_attribute(:email, PIIEncryption.encrypt_email(@decrypted_email))
       end
     end
