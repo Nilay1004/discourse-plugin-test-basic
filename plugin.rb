@@ -11,52 +11,24 @@
 enabled_site_setting :plugin_name_enabled
 
 module ::MyPluginModule
-  PLUGIN_NAME = "discourse-plugin-name-darshan"
+  PLUGIN_NAME = "discourse-plugin-name-nilay"
 end
 
 require_relative "lib/my_plugin_module/engine"
-require 'openssl'
-require 'base64'
 
 after_initialize do
-  Rails.logger.info "PIIEncryption: Plugin initialized"
+  Rails.logger.info "SimpleEncryption: Plugin initialized"
   require_dependency 'user_email'
 
-  module ::PIIEncryption
-    KEY = Base64.decode64(ENV['EMAIL_ENCRYPTION_KEY'])
+  module ::SimpleEncryption
+    KEY = "my_simple_key"  # This should be of a sufficient length for security
 
-    def self.encrypt_email(email)
-      return email if email.nil? || email.empty?
-
-      cipher = OpenSSL::Cipher.new('AES-256-CBC')
-      cipher.encrypt
-      cipher.key = KEY
-      iv = cipher.random_iv
-      encrypted_email = cipher.update(email) + cipher.final
-      encrypted_data = iv + encrypted_email
-
-      Base64.strict_encode64(encrypted_data)
-    rescue => e
-      Rails.logger.error "PIIEncryption: Error encrypting email - #{e.message}"
-      nil
+    def self.encrypt(data)
+      data.bytes.zip(KEY.bytes.cycle).map { |data_byte, key_byte| data_byte ^ key_byte }.pack('C*')
     end
 
-    def self.decrypt_email(encrypted_email)
-      return encrypted_email if encrypted_email.nil? || encrypted_email.empty?
-
-      encrypted_data = Base64.strict_decode64(encrypted_email)
-      iv = encrypted_data[0, 16] # Ensure we slice correctly for the 16 bytes IV
-      encrypted_message = encrypted_data[16..-1]
-
-      decipher = OpenSSL::Cipher.new('AES-256-CBC')
-      decipher.decrypt
-      decipher.key = KEY
-      decipher.iv = iv
-
-      decipher.update(encrypted_message) + decipher.final
-    rescue => e
-      Rails.logger.error "PIIEncryption: Error decrypting email - #{e.message}"
-      nil
+    def self.decrypt(data)
+      data.bytes.zip(KEY.bytes.cycle).map { |data_byte, key_byte| data_byte ^ key_byte }.pack('C*')
     end
   end
 
@@ -64,25 +36,25 @@ after_initialize do
     before_save :encrypt_email_address
 
     def email
-      @decrypted_email ||= PIIEncryption.decrypt_email(read_attribute(:email))
+      @decrypted_email ||= SimpleEncryption.decrypt(read_attribute(:email))
     end
 
     def email=(value)
       @decrypted_email = value
-      write_attribute(:email, PIIEncryption.encrypt_email(value))
+      write_attribute(:email, SimpleEncryption.encrypt(value))
     end
 
     private
 
     def encrypt_email_address
-      if email_changed? && @decrypted_email.present?
-        write_attribute(:email, PIIEncryption.encrypt_email(@decrypted_email))
+      if email_changed?
+        write_attribute(:email, SimpleEncryption.encrypt(@decrypted_email))
       end
     end
   end
 
   # Ensure we do not decrypt the email during validation
-  module ::PIIEncryption::UserPatch
+  module ::SimpleEncryption::UserPatch
     def email
       if new_record?
         # Return the raw email attribute during the signup process
@@ -93,5 +65,5 @@ after_initialize do
     end
   end
 
-  ::User.prepend(::PIIEncryption::UserPatch)
+  ::User.prepend(::SimpleEncryption::UserPatch)
 end
