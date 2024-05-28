@@ -18,6 +18,23 @@ after_initialize do
   require_dependency 'user_email'
 
   module PIIEncryption
+    KEY = Base64.decode64(ENV['EMAIL_ENCRYPTION_KEY'])
+
+    def self.encrypt_email(email)
+      return email if email.nil? || email.empty?
+
+      cipher = OpenSSL::Cipher::AES.new(256, :CBC)
+      cipher.encrypt
+      cipher.key = KEY
+      iv = cipher.random_iv
+      encrypted = cipher.update(email) + cipher.final
+
+      encrypted_email = Base64.encode64(iv + encrypted)
+      Rails.logger.info "PIIEncryption: Encrypting email: #{email}"
+      Rails.logger.info "PIIEncryption: Encrypted email: #{encrypted_email}"
+      encrypted_email
+    end
+
     def self.decrypt_email(encrypted_email)
       return nil if encrypted_email.nil? || encrypted_email.empty?
 
