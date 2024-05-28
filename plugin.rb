@@ -11,36 +11,49 @@
 enabled_site_setting :plugin_name_enabled
 
 module ::MyPluginModule
-  PLUGIN_NAME = "discourse-plugin-name-nilay"
+  PLUGIN_NAME = "discourse-plugin-name-darshan"
 end
 
 require_relative "lib/my_plugin_module/engine"
+require 'openssl'
 
 after_initialize do
-  Rails.logger.info "SimpleEncryption: Plugin initialized"
+  Rails.logger.info "PIIEncryption: Plugin initialized"
   require_dependency 'user_email'
 
-  require 'base64'
+  module ::PIIEncryption
+    # Method to encrypt the email using OpenSSL and the encryption key from app.yml
+    def self.encrypt_email(email)
+      return email if email.nil? || email.empty?
 
-  module ::SimpleEncryption
-    KEY = "my_simple_key"  # This should be of a sufficient length for security
+      encryption_key = ENV['EMAIL_ENCRYPTION_KEY']
+      raise "Encryption key not found in environment variable EMAIL_ENCRYPTION_KEY" if encryption_key.nil?
 
-    def self.encrypt(data)
-      return data if data.nil? || data.empty?
-      encrypted_data = data.bytes.zip(KEY.bytes.cycle).map { |data_byte, key_byte| data_byte ^ key_byte }.pack('C*')
-      Base64.strict_encode64(encrypted_data)
+      cipher = OpenSSL::Cipher.new('AES-256-CBC')
+      cipher.encrypt
+      cipher.key = encryption_key
+      iv = cipher.random_iv
+
+      encrypted_email = cipher.update(email) + cipher.final
+      Rails.logger.info "PIIEncryption: Encrypted email: #{encrypted_email}"
+      { ciphertext: encrypted_email, iv: iv }
     end
 
-    def self.decrypt(data)
-      return data if data.nil? || data.empty?
+    # Method to decrypt the email using OpenSSL and the encryption key from app.yml
+    def self.decrypt_email(encrypted_data)
+      return encrypted_data if encrypted_data.nil? || encrypted_data.empty?
 
-      begin
-        encrypted_data = Base64.strict_decode64(data)
-        encrypted_data.bytes.zip(KEY.bytes.cycle).map { |data_byte, key_byte| data_byte ^ key_byte }.pack('C*')
-      rescue ArgumentError => e
-        Rails.logger.error "SimpleEncryption: Failed to decode base64 - #{e.message}"
-        data  # Return the original data if decoding fails
-      end
+      encryption_key = ENV['EMAIL_ENCRYPTION_KEY']
+      raise "Encryption key not found in environment variable EMAIL_ENCRYPTION_KEY" if encryption_key.nil?
+
+      decipher = OpenSSL::Cipher.new('AES-256-CBC')
+      decipher.decrypt
+      decipher.key = encryption_key
+      decipher.iv = encrypted_data[:iv]
+
+      decrypted_email = decipher.update(encrypted_data[:ciphertext]) + decipher.final
+      Rails.logger.info "PIIEncryption: Decrypted email: #{decrypted_email}"
+      decrypted_email
     end
   end
 
@@ -48,25 +61,25 @@ after_initialize do
     before_save :encrypt_email_address
 
     def email
-      @decrypted_email ||= SimpleEncryption.decrypt(read_attribute(:email))
+      @decrypted_email ||= PIIEncryption.decrypt_email(read_attribute(:email))
     end
 
     def email=(value)
       @decrypted_email = value
-      write_attribute(:email, SimpleEncryption.encrypt(value))
+      write_attribute(:email, PIIEncryption.encrypt_email(value))
     end
 
     private
 
     def encrypt_email_address
       if email_changed?
-        write_attribute(:email, SimpleEncryption.encrypt(@decrypted_email))
+        write_attribute(:email, PIIEncryption.encrypt_email(@decrypted_email))
       end
     end
   end
 
   # Ensure we do not decrypt the email during validation
-  module ::SimpleEncryption::UserPatch
+  module ::PIIEncryption::UserPatch
     def email
       if new_record?
         # Return the raw email attribute during the signup process
@@ -77,5 +90,5 @@ after_initialize do
     end
   end
 
-  ::User.prepend(::SimpleEncryption::UserPatch)
+  ::User.prepend(::PIIEncryption::UserPatch)
 end
