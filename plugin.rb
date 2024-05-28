@@ -10,6 +10,11 @@
 
 enabled_site_setting :plugin_name_enabled
 
+module ::MyPluginModule
+  PLUGIN_NAME = "discourse-plugin-name-darshan"
+end
+
+require_relative "lib/my_plugin_module/engine"
 require 'openssl'
 require 'base64'
 
@@ -17,52 +22,35 @@ after_initialize do
   Rails.logger.info "PIIEncryption: Plugin initialized"
   require_dependency 'user_email'
 
-  module PIIEncryption
-    KEY = Base64.decode64(ENV['EMAIL_ENCRYPTION_KEY'])
+  module ::PIIEncryption
+    KEY = OpenSSL::Random.random_bytes(32)
 
     def self.encrypt_email(email)
       return email if email.nil? || email.empty?
 
-      cipher = OpenSSL::Cipher::AES.new(256, :CBC)
+      cipher = OpenSSL::Cipher.new('AES-256-CBC')
       cipher.encrypt
       cipher.key = KEY
       iv = cipher.random_iv
-      encrypted = cipher.update(email) + cipher.final
+      encrypted_email = cipher.update(email) + cipher.final
+      encrypted_data = iv + encrypted_email
 
-      encrypted_email = Base64.encode64(iv + encrypted)
-      Rails.logger.info "PIIEncryption: Encrypting email: #{email}"
-      Rails.logger.info "PIIEncryption: Encrypted email: #{encrypted_email}"
-      encrypted_email
+      Base64.strict_encode64(encrypted_data)
     end
 
     def self.decrypt_email(encrypted_email)
-      return nil if encrypted_email.nil? || encrypted_email.empty?
+      return encrypted_email if encrypted_email.nil? || encrypted_email.empty?
 
-      decoded_data = Base64.decode64(encrypted_email)
-      iv = decoded_data[0..15]  # AES block size for IV is 16 bytes
-      encrypted = decoded_data[16..-1]
+      encrypted_data = Base64.strict_decode64(encrypted_email)
+      iv = encrypted_data[0..15]
+      encrypted_message = encrypted_data[16..-1]
 
-      if iv.nil?
-        Rails.logger.error "PIIEncryption: IV is nil"
-        return nil
-      end
-
-      if iv.length != 16
-        Rails.logger.error "PIIEncryption: IV length is not 16 bytes"
-        return nil
-      end
-
-      Rails.logger.info "PIIEncryption: Decrypting email: #{encrypted_email}"
-      Rails.logger.info "PIIEncryption: IV length: #{iv.length}"
-      Rails.logger.info "PIIEncryption: Encrypted part length: #{encrypted.length}"
-
-      decipher = OpenSSL::Cipher::AES.new(256, :CBC)
+      decipher = OpenSSL::Cipher.new('AES-256-CBC')
       decipher.decrypt
       decipher.key = KEY
       decipher.iv = iv
-      decrypted = decipher.update(encrypted) + decipher.final
-      Rails.logger.info "PIIEncryption: Decrypted email: #{decrypted}"
-      decrypted
+
+      decipher.update(encrypted_message) + decipher.final
     end
   end
 
@@ -88,7 +76,7 @@ after_initialize do
   end
 
   # Ensure we do not decrypt the email during validation
-  module PIIEncryption::UserPatch
+  module ::PIIEncryption::UserPatch
     def email
       if new_record?
         # Return the raw email attribute during the signup process
@@ -99,5 +87,5 @@ after_initialize do
     end
   end
 
-  ::User.prepend(PIIEncryption::UserPatch)
+  ::User.prepend(::PIIEncryption::UserPatch)
 end
