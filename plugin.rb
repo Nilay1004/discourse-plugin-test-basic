@@ -23,7 +23,7 @@ after_initialize do
   require_dependency 'user_email'
 
   module ::PIIEncryption
-    KEY = OpenSSL::Random.random_bytes(32)
+    KEY = Base64.decode64(ENV['EMAIL_ENCRYPTION_KEY'])
 
     def self.encrypt_email(email)
       return email if email.nil? || email.empty?
@@ -42,7 +42,7 @@ after_initialize do
       return encrypted_email if encrypted_email.nil? || encrypted_email.empty?
 
       encrypted_data = Base64.strict_decode64(encrypted_email)
-      iv = encrypted_data[0..15]
+      iv = encrypted_data[0, 16] # Ensure we slice correctly for the 16 bytes IV
       encrypted_message = encrypted_data[16..-1]
 
       decipher = OpenSSL::Cipher.new('AES-256-CBC')
@@ -51,6 +51,9 @@ after_initialize do
       decipher.iv = iv
 
       decipher.update(encrypted_message) + decipher.final
+    rescue ArgumentError => e
+      Rails.logger.error "PIIEncryption: Error decrypting email - #{e.message}"
+      nil
     end
   end
 
