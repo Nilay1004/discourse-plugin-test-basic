@@ -24,17 +24,19 @@ after_initialize do
   require_dependency 'user_email'
 
   module ::PIIEncryption
-    KEY = OpenSSL::Cipher::AES.new(256, :CBC).random_key
-    IV = OpenSSL::Cipher::AES.new(256, :CBC).random_iv
+    KEY = Base64.decode64(ENV['EMAIL_ENCRYPTION_KEY'])
 
     def self.encrypt_email(email)
       return email if email.nil? || email.empty?
+
       cipher = OpenSSL::Cipher::AES.new(256, :CBC)
       cipher.encrypt
       cipher.key = KEY
-      cipher.iv = IV
+      iv = cipher.random_iv
       encrypted = cipher.update(email) + cipher.final
-      encrypted_email = Base64.encode64(encrypted)
+
+      # Encode the IV and the encrypted email together
+      encrypted_email = Base64.encode64(iv + encrypted)
       Rails.logger.info "PIIEncryption: Encrypting email: #{email}"
       Rails.logger.info "PIIEncryption: Encrypted email: #{encrypted_email}"
       encrypted_email
@@ -42,11 +44,16 @@ after_initialize do
 
     def self.decrypt_email(encrypted_email)
       return encrypted_email if encrypted_email.nil? || encrypted_email.empty?
+
+      decoded_data = Base64.decode64(encrypted_email)
+      iv = decoded_data[0..15]  # AES block size for IV is 16 bytes
+      encrypted = decoded_data[16..-1]
+
       decipher = OpenSSL::Cipher::AES.new(256, :CBC)
       decipher.decrypt
       decipher.key = KEY
-      decipher.iv = IV
-      decrypted = decipher.update(Base64.decode64(encrypted_email)) + decipher.final
+      decipher.iv = iv
+      decrypted = decipher.update(encrypted) + decipher.final
       Rails.logger.info "PIIEncryption: Decrypting email: #{encrypted_email}"
       Rails.logger.info "PIIEncryption: Decrypted email: #{decrypted}"
       decrypted
