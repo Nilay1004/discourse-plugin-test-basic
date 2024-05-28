@@ -18,7 +18,8 @@ require_relative "lib/my_plugin_module/engine"
 require 'openssl'
 
 after_initialize do
-  Rails.logger.info "PIIEncryption: Plugin initialized"
+  puts "PIIEncryption: Plugin initialized" # Print statement for debugging
+
   require_dependency 'user_email'
 
   module ::PIIEncryption
@@ -27,16 +28,17 @@ after_initialize do
       return email if email.nil? || email.empty?
 
       encryption_key = ENV['EMAIL_ENCRYPTION_KEY']
+      puts "PIIEncryption: Encryption key length: #{encryption_key.length}" # Print statement for debugging
       raise "Encryption key not found in environment variable EMAIL_ENCRYPTION_KEY" if encryption_key.nil?
-      raise "Encryption key must be 32 bytes" unless encryption_key.bytesize == 32
+      raise "Encryption key must be 32 bytes (currently #{encryption_key.length} bytes)" unless encryption_key.length == 64
 
       cipher = OpenSSL::Cipher.new('AES-256-CBC')
       cipher.encrypt
-      cipher.key = encryption_key
+      cipher.key = [encryption_key].pack("H*") # Convert hexadecimal string to binary
       iv = cipher.random_iv
 
       encrypted_email = cipher.update(email) + cipher.final
-      Rails.logger.info "PIIEncryption: Encrypted email: #{encrypted_email}"
+      puts "PIIEncryption: Encrypted email: #{encrypted_email}" # Print statement for debugging
       { ciphertext: encrypted_email, iv: iv }
     end
 
@@ -45,16 +47,17 @@ after_initialize do
       return encrypted_data if encrypted_data.nil? || encrypted_data.empty?
 
       encryption_key = ENV['EMAIL_ENCRYPTION_KEY']
+      puts "PIIEncryption: Decryption key length: #{encryption_key.length}" # Print statement for debugging
       raise "Encryption key not found in environment variable EMAIL_ENCRYPTION_KEY" if encryption_key.nil?
-      raise "Encryption key must be 32 bytes" unless encryption_key.bytesize == 32
+      raise "Encryption key must be 32 bytes (currently #{encryption_key.length} bytes)" unless encryption_key.length == 64
 
       decipher = OpenSSL::Cipher.new('AES-256-CBC')
       decipher.decrypt
-      decipher.key = encryption_key
+      decipher.key = [encryption_key].pack("H*") # Convert hexadecimal string to binary
       decipher.iv = encrypted_data[:iv]
 
       decrypted_email = decipher.update(encrypted_data[:ciphertext]) + decipher.final
-      Rails.logger.info "PIIEncryption: Decrypted email: #{decrypted_email}"
+      puts "PIIEncryption: Decrypted email: #{decrypted_email}" # Print statement for debugging
       decrypted_email
     end
   end
