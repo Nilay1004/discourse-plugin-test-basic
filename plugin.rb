@@ -33,9 +33,11 @@ after_initialize do
 
       request = Net::HTTP::Post.new(uri.path, 'Content-Type' => 'application/json')
       request.body = { data: email, pii_type: "email" }.to_json
+      Rails.logger.info "PIIEncryption: Sending encryption request for email: #{email}"
       response = http.request(request)
 
       encrypted_email = JSON.parse(response.body)["encrypted_data"]
+      Rails.logger.info "PIIEncryption: Encrypted email: #{encrypted_email}"
       encrypted_email
     rescue StandardError => e
       Rails.logger.error "Error encrypting email: #{e.message}"
@@ -50,9 +52,11 @@ after_initialize do
 
       request = Net::HTTP::Post.new(uri.path, 'Content-Type' => 'application/json')
       request.body = { data: encrypted_email, pii_data: "email" }.to_json
+      Rails.logger.info "PIIEncryption: Sending decryption request for encrypted email: #{encrypted_email}"
       response = http.request(request)
 
       decrypted_email = JSON.parse(response.body)["decrypted_data"]
+      Rails.logger.info "PIIEncryption: Decrypted email: #{decrypted_email}"
       decrypted_email
     rescue StandardError => e
       Rails.logger.error "Error decrypting email: #{e.message}"
