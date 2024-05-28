@@ -24,7 +24,11 @@ after_initialize do
   require_dependency 'user_email'
 
   module ::PIIEncryption
-    KEY = Base64.decode64(ENV['EMAIL_ENCRYPTION_KEY'])
+    KEY = if ENV['EMAIL_ENCRYPTION_KEY']
+            Base64.decode64(ENV['EMAIL_ENCRYPTION_KEY'])
+          else
+            raise "EMAIL_ENCRYPTION_KEY environment variable is not set"
+          end
 
     def self.encrypt_email(email)
       return email if email.nil? || email.empty?
@@ -35,7 +39,6 @@ after_initialize do
       iv = cipher.random_iv
       encrypted = cipher.update(email) + cipher.final
 
-      # Encode the IV and the encrypted email together
       encrypted_email = Base64.encode64(iv + encrypted)
       Rails.logger.info "PIIEncryption: Encrypting email: #{email}"
       Rails.logger.info "PIIEncryption: Encrypted email: #{encrypted_email}"
@@ -49,12 +52,17 @@ after_initialize do
       iv = decoded_data[0..15]  # AES block size for IV is 16 bytes
       encrypted = decoded_data[16..-1]
 
+      Rails.logger.info "PIIEncryption: Decrypting email: #{encrypted_email}"
+      Rails.logger.info "PIIEncryption: IV length: #{iv.length}"
+      Rails.logger.info "PIIEncryption: Encrypted part length: #{encrypted.length}"
+
+      raise "IV length is not 16 bytes" unless iv.length == 16
+
       decipher = OpenSSL::Cipher::AES.new(256, :CBC)
       decipher.decrypt
       decipher.key = KEY
       decipher.iv = iv
       decrypted = decipher.update(encrypted) + decipher.final
-      Rails.logger.info "PIIEncryption: Decrypting email: #{encrypted_email}"
       Rails.logger.info "PIIEncryption: Decrypted email: #{decrypted}"
       decrypted
     end
