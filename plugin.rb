@@ -20,15 +20,21 @@ after_initialize do
   Rails.logger.info "SimpleEncryption: Plugin initialized"
   require_dependency 'user_email'
 
+  require 'base64'
+
   module ::SimpleEncryption
     KEY = "my_simple_key"  # This should be of a sufficient length for security
 
     def self.encrypt(data)
-      data.bytes.zip(KEY.bytes.cycle).map { |data_byte, key_byte| data_byte ^ key_byte }.pack('C*')
+      return data if data.nil? || data.empty?
+      encrypted_data = data.bytes.zip(KEY.bytes.cycle).map { |data_byte, key_byte| data_byte ^ key_byte }.pack('C*')
+      Base64.strict_encode64(encrypted_data)
     end
 
     def self.decrypt(data)
-      data.bytes.zip(KEY.bytes.cycle).map { |data_byte, key_byte| data_byte ^ key_byte }.pack('C*')
+      return data if data.nil? || data.empty?
+      encrypted_data = Base64.strict_decode64(data)
+      encrypted_data.bytes.zip(KEY.bytes.cycle).map { |data_byte, key_byte| data_byte ^ key_byte }.pack('C*')
     end
   end
 
