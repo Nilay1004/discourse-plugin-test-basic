@@ -73,4 +73,3 @@ after_initialize do
 
   ::User.prepend(::PIIEncryption::UserPatch)
 end
-
