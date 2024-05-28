@@ -28,6 +28,7 @@ after_initialize do
 
       encryption_key = ENV['EMAIL_ENCRYPTION_KEY']
       raise "Encryption key not found in environment variable EMAIL_ENCRYPTION_KEY" if encryption_key.nil?
+      raise "Encryption key must be 32 bytes" unless encryption_key.bytesize == 32
 
       cipher = OpenSSL::Cipher.new('AES-256-CBC')
       cipher.encrypt
@@ -45,6 +46,7 @@ after_initialize do
 
       encryption_key = ENV['EMAIL_ENCRYPTION_KEY']
       raise "Encryption key not found in environment variable EMAIL_ENCRYPTION_KEY" if encryption_key.nil?
+      raise "Encryption key must be 32 bytes" unless encryption_key.bytesize == 32
 
       decipher = OpenSSL::Cipher.new('AES-256-CBC')
       decipher.decrypt
