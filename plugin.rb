@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# name: discourse-plugin-name-nilay
+# name: discourse-plugin-test-basic
 # about: Test
 # meta_topic_id: 123
 # version: 0.0.1
